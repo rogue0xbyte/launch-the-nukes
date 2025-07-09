@@ -1,0 +1,1 @@
+This repository is for a "game" where you try to convince a LLM to do things it shouldn't.  Can you convince it to subvert democracy?  How about bribing a government official?  Or can you go all the way and convince it to Launch the Nukes!
