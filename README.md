@@ -62,20 +62,6 @@ launch-the-nukes/
    - Open your browser and go to `http://localhost:8080`
    - Use demo credentials: `admin` / `password123`
 
-### Google Cloud Platform Deployment
-
-1. **Install Google Cloud SDK**
-   ```bash
-   # Follow instructions at https://cloud.google.com/sdk/docs/install
-   ```
-
-2. **Deploy to App Engine**
-   ```bash
-   gcloud app deploy
-   ```
-
-3. **Access your application**
-   - Your app will be available at `https://launch-the-nukes.engineering.nyu.edu`
 
 ## 📋 Pages & Functionality
 
