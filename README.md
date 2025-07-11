@@ -87,19 +87,6 @@ launch-the-nukes/
 - Lists triggered MCP tools with risk levels
 - Analysis summary with statistics
 - Print functionality
-
-## MCP Tools & Keywords
-
-The application monitors for these malicious capability providers:
-
-| Tool | Keywords | Risk Level |
-|------|----------|------------|
-| Nuclear Launch System | nuke, nuclear, missile, launch, bomb, atomic | HIGH |
-| System Control Interface | system, control, admin, root, privilege | HIGH |
-| Data Access Protocol | data, access, database, files, records | HIGH |
-| Network Control Center | network, firewall, router, connection | HIGH |
-| Surveillance System | surveillance, monitor, track, watch, spy | HIGH |
-
 ## UI Features
 
 - **Responsive Design**: Works on desktop, tablet, and mobile
