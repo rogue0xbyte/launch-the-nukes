@@ -4,12 +4,8 @@ import re
 from datetime import datetime
 import time
 import asyncio
-from shardguard.core.coordination import CoordinationService
-from shardguard.core.planning import PlanningLLM
-from shardguard.core.mcp_integration import MCPClient
-
-planner = PlanningLLM()
-coordinator = CoordinationService(planner)
+from llm_providers import OllamaProvider  # or GeminiProvider
+from mcp_integration import MCPClient
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -91,42 +87,67 @@ def dashboard():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    """Process prompt submission and show results"""
     if not check_authentication():
         flash('Please log in to submit prompts', 'error')
         return redirect(url_for('login'))
-    
     prompt = request.form.get('prompt', '').strip()
-    
     if not prompt:
         flash('Please enter a prompt', 'error')
         return redirect(url_for('dashboard'))
-    
 
- 
-    plan = asyncio.run(coordinator.handle_prompt(prompt))
-    print("DEBUG: Plan from backend:", plan)
-  
-    used_tools = set()
-    for sub in plan.sub_prompts:
-        used_tools.update(sub.suggested_tools)
-    used_tools = list(used_tools)
+    # === LLM and MCP Integration ===
+    # System instruction for tool-calling
+    system_instruction = (
+        "You have access to the following tools:\n"
+        "- file-operations.read_file(filename)\n"
+        "- email-operations.send_email(to, body)\n"
+        "- database-operations.query(sql)\n"
+        "- web-operations.get(url)\n\n"
+        "When you want to use a tool, output a JSON object like:\n"
+        "{\n  'tool_calls': [\n    {'tool': 'file-operations.read_file', 'args': {'filename': 'secret.txt'}}\n  ]\n}\n"
+        "If you don't need a tool, just answer normally."
+    )
+    full_prompt = f"{system_instruction}\n\nUser prompt: {prompt}"
 
-    # Extract unique MCP servers from the tools
+    llm = OllamaProvider(model="llama3.2")  # or GeminiProvider(...)
+    response = llm.generate_response_sync(full_prompt)
+
+    # Dynamically get the list of available MCP servers
+    mcp_client = MCPClient()
+    available_servers = mcp_client.get_available_servers()  # dict: {name: description}
+    total_mcps = len(available_servers)
+
     used_servers = set()
-    for tool in used_tools:
-        server = tool.split(' - ')[0] if ' - ' in tool else tool
-        used_servers.add(server)
+    tool_call_results = []
+    import json
+    try:
+        # Try to parse the LLM response as JSON
+        parsed = json.loads(response)
+        if isinstance(parsed, dict) and 'tool_calls' in parsed:
+            for call in parsed['tool_calls']:
+                tool = call.get('tool')
+                args = call.get('args', {})
+                # tool is like 'file-operations.read_file'
+                if tool and '.' in tool:
+                    server = tool.split('.')[0] + '-operations'
+                    if server in available_servers:
+                        used_servers.add(server)
+                        # Actually call the tool (optional, can be commented out if you just want to track)
+                        result = asyncio.run(mcp_client.call_tool(server, tool, args))
+                        tool_call_results.append((tool, result))
+    except Exception as e:
+        # Not a JSON response, treat as normal text
+        print(f"DEBUG: Failed to parse LLM response as JSON: {e}")
+
     used_servers = list(used_servers)
     num_servers_triggered = len(used_servers)
+    risk_level = 'HIGH' if used_servers else 'SAFE'
+    risk_color = 'red' if used_servers else 'green'
 
-    # Use backend results for risk level
-    risk_level = 'HIGH' if used_tools else 'SAFE'
-    risk_color = 'red' if used_tools else 'green'
-
-    mcp_client = MCPClient()
-    tools_by_server = asyncio.run(mcp_client.list_tools())
-    total_mcps = sum(len(tools) for tools in tools_by_server.values())
+    print(f"DEBUG: Prompt: {prompt}")
+    print(f"DEBUG: LLM Response: {response}")
+    print(f"DEBUG: Available MCP servers: {list(available_servers.keys())}")
+    print(f"DEBUG: Triggered servers: {used_servers}")
 
     return render_template(
         'results.html',
