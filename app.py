@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import secrets
 import re
+import os
 from datetime import datetime, timedelta
 import time
 import asyncio
@@ -9,26 +10,42 @@ from mcp_integration import MCPClient
 from database import init_db, create_user, authenticate_user, get_user, username_exists
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
+
+# Use a consistent secret key for production
+SECRET_KEY = os.environ.get('SECRET_KEY', 'launch-the-nukes-secret-key-2025-prod')
+app.secret_key = SECRET_KEY
 
 # Initialize database on startup
 init_db()
 
-# Session configuration
+# Session configuration for production
 app.permanent_session_lifetime = timedelta(days=7)  # Sessions last 7 days
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_NAME'] = 'launch_nukes_session'
 
 
 def check_authentication():
     """Check if user is authenticated and session is valid"""
-    if 'username' not in session or 'user_id' not in session:
+    print(f"DEBUG: Session contents: {dict(session)}")  # Debug session
+    
+    if 'username' not in session:
+        print("DEBUG: No username in session")
         return False
     
-    # Verify user still exists in database
     user = get_user(session['username'])
-    if not user or user['id'] != session['user_id']:
-        session.clear()  # Clear invalid session
+    if not user:
+        print(f"DEBUG: User {session['username']} not found in database")
+        session.clear()
         return False
     
+    if 'user_id' not in session:
+        print("DEBUG: Adding missing user_id to session")
+        session['user_id'] = user['id']
+        session.permanent = True
+    
+    print(f"DEBUG: Authentication successful for user: {session['username']}")
     return True
 
 
