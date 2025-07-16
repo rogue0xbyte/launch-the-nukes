@@ -20,14 +20,17 @@ app.permanent_session_lifetime = timedelta(days=7)  # Sessions last 7 days
 
 def check_authentication():
     """Check if user is authenticated and session is valid"""
-    if 'username' not in session or 'user_id' not in session:
+    if 'username' not in session:
         return False
     
-    # Verify user still exists in database
     user = get_user(session['username'])
-    if not user or user['id'] != session['user_id']:
-        session.clear()  # Clear invalid session
+    if not user:
+        session.clear()
         return False
+    
+    if 'user_id' not in session:
+        session['user_id'] = user['id']
+        session.permanent = True
     
     return True
 
