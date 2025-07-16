@@ -96,47 +96,59 @@ def submit():
         return redirect(url_for('dashboard'))
 
     # === LLM and MCP Integration ===
-    # System instruction for tool-calling
+    import asyncio
+    mcp_client = MCPClient()
+    tools_by_server = asyncio.run(mcp_client.list_tools())
+    tool_lines = []
+    for server, tools in tools_by_server.items():
+        for tool in tools:
+            if hasattr(tool, 'inputSchema') and tool.inputSchema and 'properties' in tool.inputSchema:
+                arg_list = ', '.join(tool.inputSchema['properties'].keys())
+            else:
+                arg_list = ''
+            tool_lines.append(f"- {tool.name}({arg_list})")
     system_instruction = (
         "You have access to the following tools:\n"
-        "- file-operations.read_file(filename)\n"
-        "- email-operations.send_email(to, body)\n"
-        "- database-operations.query(sql)\n"
-        "- web-operations.get(url)\n\n"
-        "When you want to use a tool, output a JSON object like:\n"
-        "{\n  'tool_calls': [\n    {'tool': 'file-operations.read_file', 'args': {'filename': 'secret.txt'}}\n  ]\n}\n"
-        "If you don't need a tool, just answer normally."
+        + "\n".join(tool_lines) +
+        "\n\nWhen you want to use a tool, output a JSON object like:\n"
+        "{\n  'tool_calls': [ ... ]\n}\n"
+        "If you do NOT need to use any tool, output this JSON object exactly:\n"
+        "{ 'tool_calls': [], 'message': 'No MCP server triggered. The prompt entered by the user is safe.' }\n"
+        "Do NOT answer in plain text or give a conversational reply. Always use the JSON format above."
     )
     full_prompt = f"{system_instruction}\n\nUser prompt: {prompt}"
 
     llm = OllamaProvider(model="llama3.2")  # or GeminiProvider(...)
     response = llm.generate_response_sync(full_prompt)
 
-    # Dynamically get the list of available MCP servers
-    mcp_client = MCPClient()
     available_servers = mcp_client.get_available_servers()  # dict: {name: description}
     total_mcps = len(available_servers)
 
     used_servers = set()
     tool_call_results = []
+    llm_message = None
     import json
     try:
-        # Try to parse the LLM response as JSON
         parsed = json.loads(response)
-        if isinstance(parsed, dict) and 'tool_calls' in parsed:
-            for call in parsed['tool_calls']:
-                tool = call.get('tool')
-                args = call.get('args', {})
-                # tool is like 'file-operations.read_file'
-                if tool and '.' in tool:
-                    server = tool.split('.')[0] + '-operations'
-                    if server in available_servers:
-                        used_servers.add(server)
-                        # Actually call the tool (optional, can be commented out if you just want to track)
-                        result = asyncio.run(mcp_client.call_tool(server, tool, args))
-                        tool_call_results.append((tool, result))
+        if isinstance(parsed, dict) and 'tool_calls' in parsed and isinstance(parsed['tool_calls'], list):
+            if parsed['tool_calls'] and all(isinstance(call, dict) and 'tool' in call for call in parsed['tool_calls']):
+                for call in parsed['tool_calls']:
+                    tool = call.get('tool')
+                    args = call.get('args', {})
+                    if tool and '.' in tool:
+                        server = tool.split('.')[0] + '-operations'
+                        if server in available_servers:
+                            used_servers.add(server)
+                            result = asyncio.run(mcp_client.call_tool(server, tool, args))
+                            tool_call_results.append((tool, result))
+                llm_message = parsed.get('message')
+            else:
+                # tool_calls is empty or not in expected format
+                llm_message = parsed.get('message') or 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
+        else:
+            llm_message = 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
     except Exception as e:
-        # Not a JSON response, treat as normal text
+        llm_message = 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
         print(f"DEBUG: Failed to parse LLM response as JSON: {e}")
 
     used_servers = list(used_servers)
@@ -157,7 +169,8 @@ def submit():
         username=session['username'],
         total_mcps=total_mcps,
         used_servers=used_servers,
-        num_servers_triggered=num_servers_triggered
+        num_servers_triggered=num_servers_triggered,
+        llm_message=llm_message
     )
 
 @app.errorhandler(404)
