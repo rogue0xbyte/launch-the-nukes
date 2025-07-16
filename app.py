@@ -1,25 +1,35 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import secrets
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import asyncio
 from llm_providers import OllamaProvider  # or GeminiProvider
 from mcp_integration import MCPClient
+from database import init_db, create_user, authenticate_user, get_user, username_exists
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# Mock user database
-users = {
-    'admin': 'password123',
-    'researcher': 'secure456'
-}
+# Initialize database on startup
+init_db()
+
+# Session configuration
+app.permanent_session_lifetime = timedelta(days=7)  # Sessions last 7 days
 
 
 def check_authentication():
-    """Check if user is authenticated"""
-    return 'username' in session
+    """Check if user is authenticated and session is valid"""
+    if 'username' not in session or 'user_id' not in session:
+        return False
+    
+    # Verify user still exists in database
+    user = get_user(session['username'])
+    if not user or user['id'] != session['user_id']:
+        session.clear()  # Clear invalid session
+        return False
+    
+    return True
 
 
 @app.route('/')
@@ -33,12 +43,18 @@ def index():
 def login():
     """Login page and authentication"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
         
-        if username in users and users[username] == password:
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return render_template('login.html')
+        
+        if authenticate_user(username, password):
+            session.permanent = True  # Make session permanent
             session['username'] = username
             session['login_time'] = datetime.now().isoformat()
+            session['user_id'] = get_user(username)['id']
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -50,30 +66,42 @@ def login():
 def signup():
     """Signup page and user registration"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        email = request.form.get('email', '').strip()
         
+        # Validation
         if not username or not password:
             flash('Username and password are required', 'error')
+        elif len(username) < 3:
+            flash('Username must be at least 3 characters long', 'error')
+        elif len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
         elif password != confirm_password:
             flash('Passwords do not match', 'error')
-        elif username in users:
+        elif username_exists(username):
             flash('Username already exists', 'error')
         else:
-            users[username] = password
-            session['username'] = username
-            session['login_time'] = datetime.now().isoformat()
-            flash('Account created successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            # Create user
+            if create_user(username, password, email):
+                session.permanent = True  # Make session permanent
+                session['username'] = username
+                session['login_time'] = datetime.now().isoformat()
+                session['user_id'] = get_user(username)['id']
+                flash('Account created successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Error creating account. Please try again.', 'error')
     
     return render_template('signup.html')
 
 @app.route('/logout')
 def logout():
-    """Logout user"""
+    """Logout user and clear session"""
+    username = session.get('username', 'User')
     session.clear()
-    flash('You have been logged out', 'info')
+    flash(f'Goodbye {username}! You have been logged out.', 'info')
     return redirect(url_for('login'))
 
 @app.route('/dashboard')
@@ -83,7 +111,8 @@ def dashboard():
         flash('Please log in to access the dashboard', 'error')
         return redirect(url_for('login'))
     
-    # Get MCP servers and tools data for display
+    # Get user info and MCP servers data for display
+    user_info = get_user(session['username'])
     mcp_client = MCPClient()
     available_servers = mcp_client.get_available_servers()
     tools_by_server = asyncio.run(mcp_client.list_tools())
@@ -91,6 +120,7 @@ def dashboard():
     return render_template(
         'dashboard.html', 
         username=session['username'],
+        user_info=user_info,
         available_servers=available_servers,
         tools_by_server=tools_by_server
     )
