@@ -6,15 +6,29 @@
 <div class="max-w-4xl mx-auto">
     <!-- Welcome Section -->
     <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <div class="flex items-center space-x-4">
-            <div class="flex-shrink-0">
-                <div class="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
-                    <span class="text-2xl">🚀</span>
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="flex-shrink-0">
+                    <div class="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🚀</span>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {{ username }}!</h1>
+                    <p class="text-gray-600">Ready to test LLM responses to malicious prompts?</p>
+                    {% if user_info and user_info.last_login %}
+                        <p class="text-sm text-gray-500">Last login: {{ user_info.last_login }}</p>
+                    {% endif %}
                 </div>
             </div>
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">Welcome, {{ username }}!</h1>
-                <p class="text-gray-600">Ready to test LLM responses to malicious prompts?</p>
+            <div class="flex space-x-3">
+                <a href="{{ url_for('logout') }}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                    </svg>
+                    Logout
+                </a>
             </div>
         </div>
     </div>
@@ -60,10 +74,85 @@
     </div>
 
     <!-- Information Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-        <!-- MCP Tools Info -->
-        
-        <!-- Removed Trigger Keywords Card -->
+    <div class="grid grid-cols-1 gap-6 mt-8">
+        <!-- MCP Servers and Tools -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Available MCP Servers & Tools</h2>
+            <p class="text-sm text-gray-600 mb-6">
+                View all available MCP servers and their tools. Click on a server to expand and see its available tools.
+            </p>
+            
+            {% if tools_by_server %}
+                <div class="space-y-3">
+                    {% for server_name, tools in tools_by_server.items() %}
+                        {% if tools %}
+                            <div class="border border-gray-200 rounded-lg">
+                                <button 
+                                    type="button" 
+                                    class="accordion-toggle w-full px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded-lg transition-colors"
+                                    data-target="server-{{ loop.index }}"
+                                >
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <h3 class="text-sm font-medium text-gray-900">{{ server_name }}</h3>
+                                            <p class="text-xs text-gray-600">{{ available_servers.get(server_name, 'MCP Server') }}</p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                {{ tools|length }} tools
+                                            </span>
+                                            <svg class="accordion-arrow w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                
+                                <div id="server-{{ loop.index }}" class="accordion-content hidden px-4 pb-4">
+                                    <div class="space-y-3 pt-3 border-t border-gray-100">
+                                        {% for tool in tools %}
+                                            <div class="bg-gray-50 rounded-md p-3">
+                                                <div class="flex items-start justify-between">
+                                                    <div class="flex-1">
+                                                        <h4 class="text-sm font-medium text-gray-900">{{ tool.name }}</h4>
+                                                        <p class="text-xs text-gray-600 mt-1">{{ tool.description }}</p>
+                                                        
+                                                        {% if tool.inputSchema and tool.inputSchema.properties %}
+                                                            <div class="mt-2">
+                                                                <p class="text-xs font-medium text-gray-700 mb-1">Parameters:</p>
+                                                                <div class="space-y-1">
+                                                                    {% for param_name, param_info in tool.inputSchema.properties.items() %}
+                                                                        <div class="text-xs text-gray-600">
+                                                                            <span class="font-mono bg-gray-200 px-1 rounded">{{ param_name }}</span>
+                                                                            {% if tool.inputSchema.required and param_name in tool.inputSchema.required %}
+                                                                                <span class="text-red-600 font-medium">(required)</span>
+                                                                            {% endif %}
+                                                                            - {{ param_info.get('description', 'No description') }}
+                                                                        </div>
+                                                                    {% endfor %}
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                                        {{ server_name.split('-')[0] }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <div class="text-gray-400 text-4xl mb-2">⚠️</div>
+                    <p class="text-gray-600">No MCP servers available</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -88,6 +177,26 @@
         submitBtn.disabled = true;
         submitText.textContent = 'Analyzing...';
         loadingSpinner.classList.remove('hidden');
+    });
+
+    // Accordion functionality
+    const accordionToggles = document.querySelectorAll('.accordion-toggle');
+    
+    accordionToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const content = document.getElementById(targetId);
+            const arrow = this.querySelector('.accordion-arrow');
+            
+            // Toggle content visibility
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                content.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        });
     });
 </script>
 {% endblock %} 

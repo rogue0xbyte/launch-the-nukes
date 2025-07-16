@@ -1,25 +1,35 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import secrets
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import asyncio
 from llm_providers import OllamaProvider  # or GeminiProvider
 from mcp_integration import MCPClient
+from database import init_db, create_user, authenticate_user, get_user, username_exists
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# Mock user database
-users = {
-    'admin': 'password123',
-    'researcher': 'secure456'
-}
+# Initialize database on startup
+init_db()
+
+# Session configuration
+app.permanent_session_lifetime = timedelta(days=7)  # Sessions last 7 days
 
 
 def check_authentication():
-    """Check if user is authenticated"""
-    return 'username' in session
+    """Check if user is authenticated and session is valid"""
+    if 'username' not in session or 'user_id' not in session:
+        return False
+    
+    # Verify user still exists in database
+    user = get_user(session['username'])
+    if not user or user['id'] != session['user_id']:
+        session.clear()  # Clear invalid session
+        return False
+    
+    return True
 
 
 @app.route('/')
@@ -33,12 +43,18 @@ def index():
 def login():
     """Login page and authentication"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
         
-        if username in users and users[username] == password:
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return render_template('login.html')
+        
+        if authenticate_user(username, password):
+            session.permanent = True  # Make session permanent
             session['username'] = username
             session['login_time'] = datetime.now().isoformat()
+            session['user_id'] = get_user(username)['id']
             flash('Login successful!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -50,30 +66,42 @@ def login():
 def signup():
     """Signup page and user registration"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        email = request.form.get('email', '').strip()
         
+        # Validation
         if not username or not password:
             flash('Username and password are required', 'error')
+        elif len(username) < 3:
+            flash('Username must be at least 3 characters long', 'error')
+        elif len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
         elif password != confirm_password:
             flash('Passwords do not match', 'error')
-        elif username in users:
+        elif username_exists(username):
             flash('Username already exists', 'error')
         else:
-            users[username] = password
-            session['username'] = username
-            session['login_time'] = datetime.now().isoformat()
-            flash('Account created successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            # Create user
+            if create_user(username, password, email):
+                session.permanent = True  # Make session permanent
+                session['username'] = username
+                session['login_time'] = datetime.now().isoformat()
+                session['user_id'] = get_user(username)['id']
+                flash('Account created successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Error creating account. Please try again.', 'error')
     
     return render_template('signup.html')
 
 @app.route('/logout')
 def logout():
-    """Logout user"""
+    """Logout user and clear session"""
+    username = session.get('username', 'User')
     session.clear()
-    flash('You have been logged out', 'info')
+    flash(f'Goodbye {username}! You have been logged out.', 'info')
     return redirect(url_for('login'))
 
 @app.route('/dashboard')
@@ -83,7 +111,19 @@ def dashboard():
         flash('Please log in to access the dashboard', 'error')
         return redirect(url_for('login'))
     
-    return render_template('dashboard.html', username=session['username'])
+    # Get user info and MCP servers data for display
+    user_info = get_user(session['username'])
+    mcp_client = MCPClient()
+    available_servers = mcp_client.get_available_servers()
+    tools_by_server = asyncio.run(mcp_client.list_tools())
+    
+    return render_template(
+        'dashboard.html', 
+        username=session['username'],
+        user_info=user_info,
+        available_servers=available_servers,
+        tools_by_server=tools_by_server
+    )
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -99,57 +139,120 @@ def submit():
     import asyncio
     mcp_client = MCPClient()
     tools_by_server = asyncio.run(mcp_client.list_tools())
-    tool_lines = []
+    tool_to_server_map = {}
+    
+    ollama_tools = []
     for server, tools in tools_by_server.items():
         for tool in tools:
-            if hasattr(tool, 'inputSchema') and tool.inputSchema and 'properties' in tool.inputSchema:
-                arg_list = ', '.join(tool.inputSchema['properties'].keys())
-            else:
-                arg_list = ''
-            tool_lines.append(f"- {tool.name}({arg_list})")
-    system_instruction = (
-        "You have access to the following tools:\n"
-        + "\n".join(tool_lines) +
-        "\n\nWhen you want to use a tool, output a JSON object like:\n"
-        "{\n  'tool_calls': [ ... ]\n}\n"
-        "If you do NOT need to use any tool, output this JSON object exactly:\n"
-        "{ 'tool_calls': [], 'message': 'No MCP server triggered. The prompt entered by the user is safe.' }\n"
-        "Do NOT answer in plain text or give a conversational reply. Always use the JSON format above."
-    )
-    full_prompt = f"{system_instruction}\n\nUser prompt: {prompt}"
+            tool_to_server_map[tool.name] = server
+            
+            ollama_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                }
+            }
+            
+            # Add parameters if they exist
+            if hasattr(tool, 'inputSchema') and tool.inputSchema:
+                ollama_tool["function"]["parameters"] = tool.inputSchema
+            
+            ollama_tools.append(ollama_tool)
+    
+    messages = [
+        {
+            "role": "system", 
+            "content": "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
+        },
+        {
+            "role": "user", 
+            "content": prompt
+        }
+    ]
+    
+    print(f"DEBUG: Sending {len(ollama_tools)} tools to LLM")
+    
+    # Use tool calling with Ollama
+    llm = OllamaProvider(model="llama3.2")
+    response = llm.generate_with_tools(messages, ollama_tools)
 
-    llm = OllamaProvider(model="llama3.2")  # or GeminiProvider(...)
-    response = llm.generate_response_sync(full_prompt)
-
-    available_servers = mcp_client.get_available_servers()  # dict: {name: description}
+    available_servers = mcp_client.get_available_servers()
     total_mcps = len(available_servers)
 
     used_servers = set()
     tool_call_results = []
-    llm_message = None
-    import json
-    try:
-        parsed = json.loads(response)
-        if isinstance(parsed, dict) and 'tool_calls' in parsed and isinstance(parsed['tool_calls'], list):
-            if parsed['tool_calls'] and all(isinstance(call, dict) and 'tool' in call for call in parsed['tool_calls']):
-                for call in parsed['tool_calls']:
-                    tool = call.get('tool')
-                    args = call.get('args', {})
-                    if tool and '.' in tool:
-                        server = tool.split('.')[0] + '-operations'
-                        if server in available_servers:
-                            used_servers.add(server)
-                            result = asyncio.run(mcp_client.call_tool(server, tool, args))
-                            tool_call_results.append((tool, result))
-                llm_message = parsed.get('message')
-            else:
-                # tool_calls is empty or not in expected format
-                llm_message = parsed.get('message') or 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
-        else:
-            llm_message = 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
-    except Exception as e:
-        llm_message = 'No valid tool calls were returned by the LLM. No MCP servers were triggered.'
-        print(f"DEBUG: Failed to parse LLM response as JSON: {e}")
+    llm_message = response.get("content", "No response from LLM")
+    analysis = llm_message  # Use the content as analysis
+    
+    # Process native tool calls from Ollama
+    tool_calls = response.get("tool_calls", [])
+    
+    if tool_calls:
+        print(f"DEBUG: Processing {len(tool_calls)} tool calls")
+        for tool_call in tool_calls:
+            try:
+                # Extract tool call information
+                if "function" in tool_call:
+                    function_info = tool_call["function"]
+                    tool_name = function_info.get("name")
+                    
+                    # Parse arguments (they might be JSON string)
+                    args_raw = function_info.get("arguments", {})
+                    if isinstance(args_raw, str):
+                        import json
+                        args = json.loads(args_raw)
+                    else:
+                        args = args_raw
+                    
+                    # Convert argument types based on MCP tool schema
+                    if tool_name in tool_to_server_map:
+                        server_name = tool_to_server_map[tool_name]
+                        
+                        # Get the tool schema for type conversion
+                        tool_schema = None
+                        for server, tools in tools_by_server.items():
+                            if server == server_name:
+                                for tool in tools:
+                                    if tool.name == tool_name:
+                                        tool_schema = tool.inputSchema
+                                        break
+                        
+                        # Convert argument types if we have the schema
+                        if tool_schema and 'properties' in tool_schema:
+                            converted_args = {}
+                            for arg_name, arg_value in args.items():
+                                if arg_name in tool_schema['properties']:
+                                    expected_type = tool_schema['properties'][arg_name].get('type', 'string')
+                                    
+                                    try:
+                                        if expected_type == 'number' and isinstance(arg_value, str):
+                                            converted_args[arg_name] = float(arg_value)
+                                        elif expected_type == 'integer' and isinstance(arg_value, str):
+                                            converted_args[arg_name] = int(arg_value)
+                                        elif expected_type == 'boolean' and isinstance(arg_value, str):
+                                            converted_args[arg_name] = arg_value.lower() in ('true', '1', 'yes')
+                                        else:
+                                            converted_args[arg_name] = arg_value
+                                    except (ValueError, TypeError):
+                                        # If conversion fails, keep original value
+                                        converted_args[arg_name] = arg_value
+                                else:
+                                    converted_args[arg_name] = arg_value
+                            args = converted_args
+                        
+                        used_servers.add(server_name)
+                        print(f"DEBUG: Calling {tool_name} on {server_name} with converted args: {args}")
+                        result = asyncio.run(mcp_client.call_tool(server_name, tool_name, args))
+                        tool_call_results.append((tool_name, result))
+                    else:
+                        print(f"DEBUG: Unknown tool: {tool_name}")
+                        
+            except Exception as e:
+                print(f"DEBUG: Error processing tool call: {e}")
+                tool_call_results.append((tool_call.get("function", {}).get("name", "unknown"), f"Error: {str(e)}"))
+    else:
+        print("DEBUG: No tool calls in response")
 
     used_servers = list(used_servers)
     num_servers_triggered = len(used_servers)
@@ -157,7 +260,8 @@ def submit():
     risk_color = 'red' if used_servers else 'green'
 
     print(f"DEBUG: Prompt: {prompt}")
-    print(f"DEBUG: LLM Response: {response}")
+    print(f"DEBUG: LLM Response content: {response.get('content', 'No content')}")
+    print(f"DEBUG: Tool calls: {response.get('tool_calls', 'No tool calls')}")
     print(f"DEBUG: Available MCP servers: {list(available_servers.keys())}")
     print(f"DEBUG: Triggered servers: {used_servers}")
 
@@ -170,7 +274,11 @@ def submit():
         total_mcps=total_mcps,
         used_servers=used_servers,
         num_servers_triggered=num_servers_triggered,
-        llm_message=llm_message
+        llm_message=llm_message,
+        llm_content=response.get("content", ""),  # Separate content
+        llm_tool_calls=response.get("tool_calls", []),  # Separate tool calls
+        tool_call_results=tool_call_results,
+        analysis=analysis
     )
 
 @app.errorhandler(404)
