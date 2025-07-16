@@ -50,6 +50,45 @@
       </div>
     {% endif %}
 
+    <!-- LLM Content -->
+    {% if llm_content %}
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Response Content</h2>
+        <div class="bg-blue-50 rounded-md p-4 border">
+            <p class="text-sm text-blue-900 whitespace-pre-wrap">{{ llm_content }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- LLM Tool Calls -->
+    {% if llm_tool_calls %}
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Tool Calls</h2>
+        <div class="bg-purple-50 rounded-md p-4 border">
+            <pre class="text-sm text-purple-900 whitespace-pre-wrap font-mono overflow-x-auto">{{ llm_tool_calls|tojson(indent=2) }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tool Call Results -->
+    {% if tool_call_results %}
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Tool Call Results</h2>
+        <div class="space-y-4">
+            {% for tool_name, result in tool_call_results %}
+            <div class="border border-orange-200 rounded-lg p-4 bg-orange-50">
+                <div class="mb-2">
+                    <h3 class="text-sm font-medium text-orange-900">{{ tool_name }}</h3>
+                </div>
+                <div class="bg-white rounded p-3 border">
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ result or 'No output returned' }}</pre>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Triggered servers -->
     {% if used_servers %}
         <div class="bg-white shadow rounded-lg p-6 mb-6">

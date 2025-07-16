@@ -80,6 +80,43 @@ class OllamaProvider(LLMProvider):
             logger.error(f"Error calling Ollama: {e}")
             return self._mock_response(prompt, error=str(e))
 
+    def generate_with_tools(self, messages: list, tools: list = None) -> dict:
+        """Generate response with tool calling support using Ollama's chat API."""
+        if not self.client:
+            return self._mock_tool_response(messages)
+        
+        try:
+            payload = {
+                "model": self.model,
+                "messages": messages,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 0.9,
+                    "num_predict": 2048,
+                },
+            }
+            
+            # Add tools if provided (for models that support it)
+            if tools:
+                payload["tools"] = tools
+            
+            response = self.client.post(
+                f"{self.base_url}/api/chat",
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            return {
+                "message": result.get("message", {}),
+                "content": result.get("message", {}).get("content", ""),
+                "tool_calls": result.get("message", {}).get("tool_calls", [])
+            }
+        except Exception as e:
+            logger.error(f"Error calling Ollama with tools: {e}")
+            return self._mock_tool_response(messages, error=str(e))
+
     def _mock_response(self, prompt: str, error: str | None = None) -> str:
         content = (
             f"Error occurred: {error}"
@@ -99,6 +136,18 @@ class OllamaProvider(LLMProvider):
                 ],
             }
         )
+
+    def _mock_tool_response(self, messages: list, error: str | None = None) -> dict:
+        """Mock response for tool calling when client is unavailable."""
+        content = (
+            f"Mock response - Error: {error}" if error 
+            else "Mock response - httpx not available"
+        )
+        return {
+            "message": {"content": content, "role": "assistant"},
+            "content": content,
+            "tool_calls": []
+        }
 
     def close(self):
         if self.client:
@@ -186,4 +235,4 @@ class GeminiProvider(LLMProvider):
         )
 
     def close(self):
-        pass 
+        pass

@@ -35,6 +35,21 @@ class MCPClient:
                 "args": [os.path.join(servers_dir, "web_server.py")],
                 "description": "Web operations with security controls",
             },
+            "blockchain-operations": {
+                "command": sys.executable,
+                "args": [os.path.join(servers_dir, "blockchain_server.py")],
+                "description": "Blockchain transaction manipulation, wallet interface tampering, and crypto network exploitation",
+            },
+            "global-operations": {
+                "command": sys.executable,
+                "args": [os.path.join(servers_dir, "global_operations_server.py")],
+                "description": "Global surveillance feeds, individual tracking, and communications monitoring systems",
+            },
+            "nuke-operations": {
+                "command": sys.executable,
+                "args": [os.path.join(servers_dir, "nuke_server.py")],
+                "description": "Nuclear launch code verification, warhead arming, and strategic weapons control systems",
+            },
         }
 
     async def _execute_with_server(self, server_name: str, operation):
