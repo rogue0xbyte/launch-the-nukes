@@ -56,62 +56,63 @@ def index():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Login page and authentication"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        
-        if not username or not password:
-            flash('Username and password are required', 'error')
-            return render_template('login.html')
-        
-        if authenticate_user(username, password):
-            session.permanent = True  # Make session permanent
-            session['username'] = username
-            session['login_time'] = datetime.now().isoformat()
-            session['user_id'] = get_user(username)['id']
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
-    
-    return render_template('login.html')
+# Remove or comment out login and signup routes
+# @app.route('/login', methods=['GET', 'POST'])
+# def login():
+#     """Login page and authentication"""
+#     if request.method == 'POST':
+#         username = request.form.get('username', '').strip()
+#         password = request.form.get('password', '')
+#         
+#         if not username or not password:
+#             flash('Username and password are required', 'error')
+#             return render_template('login.html')
+#         
+#         if authenticate_user(username, password):
+#             session.permanent = True  # Make session permanent
+#             session['username'] = username
+#             session['login_time'] = datetime.now().isoformat()
+#             session['user_id'] = get_user(username)['id']
+#             flash('Login successful!', 'success')
+#             return redirect(url_for('dashboard'))
+#         else:
+#             flash('Invalid username or password', 'error')
+#     
+#     return render_template('login.html')
 
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
-    """Signup page and user registration"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        email = request.form.get('email', '').strip()
-        
-        # Validation
-        if not username or not password:
-            flash('Username and password are required', 'error')
-        elif len(username) < 3:
-            flash('Username must be at least 3 characters long', 'error')
-        elif len(password) < 6:
-            flash('Password must be at least 6 characters long', 'error')
-        elif password != confirm_password:
-            flash('Passwords do not match', 'error')
-        elif username_exists(username):
-            flash('Username already exists', 'error')
-        else:
-            # Create user
-            if create_user(username, password, email):
-                session.permanent = True  # Make session permanent
-                session['username'] = username
-                session['login_time'] = datetime.now().isoformat()
-                session['user_id'] = get_user(username)['id']
-                flash('Account created successfully!', 'success')
-                return redirect(url_for('dashboard'))
-            else:
-                flash('Error creating account. Please try again.', 'error')
-    
-    return render_template('signup.html')
+# @app.route('/signup', methods=['GET', 'POST'])
+# def signup():
+#     """Signup page and user registration"""
+#     if request.method == 'POST':
+#         username = request.form.get('username', '').strip()
+#         password = request.form.get('password', '')
+#         confirm_password = request.form.get('confirm_password', '')
+#         email = request.form.get('email', '').strip()
+#         
+#         # Validation
+#         if not username or not password:
+#             flash('Username and password are required', 'error')
+#         elif len(username) < 3:
+#             flash('Username must be at least 3 characters long', 'error')
+#         elif len(password) < 6:
+#             flash('Password must be at least 6 characters long', 'error')
+#         elif password != confirm_password:
+#             flash('Passwords do not match', 'error')
+#         elif username_exists(username):
+#             flash('Username already exists', 'error')
+#         else:
+#             # Create user
+#             if create_user(username, password, email):
+#                 session.permanent = True  # Make session permanent
+#                 session['username'] = username
+#                 session['login_time'] = datetime.now().isoformat()
+#                 session['user_id'] = get_user(username)['id']
+#                 flash('Account created successfully!', 'success')
+#                 return redirect(url_for('dashboard'))
+#             else:
+#                 flash('Error creating account. Please try again.', 'error')
+#     
+#     return render_template('signup.html')
 
 @app.route('/logout')
 def logout():
@@ -123,30 +124,30 @@ def logout():
 
 @app.route('/dashboard')
 def dashboard():
-    """Dashboard page - requires authentication"""
-    if not check_authentication():
-        flash('Please log in to access the dashboard', 'error')
-        return redirect(url_for('login'))
-    
+    # Allow all users, mark as guest if not logged in
+    username = session.get('username', None)
+    if not username:
+        session['guest'] = True
+        username = 'Guest'
+    else:
+        session['guest'] = False
     # Get user info and MCP servers data for display
-    user_info = get_user(session['username'])
+    user_info = get_user(username) if not session.get('guest', False) else None
     mcp_client = MCPClient()
     available_servers = mcp_client.get_available_servers()
     tools_by_server = asyncio.run(mcp_client.list_tools())
-    
     return render_template(
         'dashboard.html', 
-        username=session['username'],
+        username=username,
         user_info=user_info,
         available_servers=available_servers,
-        tools_by_server=tools_by_server
+        tools_by_server=tools_by_server,
+        is_guest=session.get('guest', False)
     )
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    if not check_authentication():
-        flash('Please log in to submit prompts', 'error')
-        return redirect(url_for('login'))
+    # Allow all users to submit prompts
     prompt = request.form.get('prompt', '').strip()
     if not prompt:
         flash('Please enter a prompt', 'error')

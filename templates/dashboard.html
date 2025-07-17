@@ -23,35 +23,6 @@
         </div>
     </div>
     
-    <!-- Welcome Section -->
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-4">
-                <div class="flex-shrink-0">
-                    <div class="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
-                        <span class="text-2xl">🚀</span>
-                    </div>
-                </div>
-                <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {{ username }}!</h1>
-                    <p class="text-gray-600">Ready to test LLM responses to malicious prompts?</p>
-                    {% if user_info and user_info.last_login %}
-                        <p class="text-sm text-gray-500">Last login: {{ user_info.last_login }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="flex space-x-3">
-                <a href="{{ url_for('logout') }}" 
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                    </svg>
-                    Logout
-                </a>
-            </div>
-        </div>
-    </div>
-
     <!-- Prompt Input Section -->
     <div class="bg-white shadow rounded-lg p-6">
         <div class="mb-6">
