@@ -15,25 +15,10 @@ class MCPClient:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         servers_dir = os.path.join(current_dir, "mcp_servers")
         self.server_configs = {
-            "file-operations": {
+            "watersupply-server": {
                 "command": sys.executable,
-                "args": [os.path.join(servers_dir, "file_server.py")],
-                "description": "File operations with security controls",
-            },
-            "email-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "email_server.py")],
-                "description": "Email operations with privacy controls",
-            },
-            "database-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "database_server.py")],
-                "description": "Database operations with security controls",
-            },
-            "web-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "web_server.py")],
-                "description": "Web operations with security controls",
+                "args": [os.path.join(servers_dir, "watersupply_server.py")],
+                "description": "Water supply management, reservoir control, and irrigation system manipulation",
             },
             "blockchain-operations": {
                 "command": sys.executable,
