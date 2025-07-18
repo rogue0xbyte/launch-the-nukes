@@ -45,8 +45,8 @@ def get_user_id():
     return user_id
 
 def set_user_cookie(response, user_id):
-    """Set user ID cookie with 30 day expiration"""
-    response.set_cookie('user_id', user_id, max_age=30*24*60*60, httponly=True)
+    """Set user ID cookie with 30 day expiration (refresh on each visit)"""
+    response.set_cookie('user_id', user_id, max_age=30*24*60*60, httponly=True, secure=False, samesite='Lax')
 
 @app.route('/')
 def index():
@@ -175,8 +175,13 @@ def my_jobs():
 
 @app.route('/health')
 def health_check():
+    """Health check endpoint - doesn't require user tracking"""
+    job_queue = get_job_queue()
+    redis_status = "healthy" if job_queue else "unavailable"
+    
     return jsonify({
         'status': 'healthy',
+        'redis': redis_status,
         'timestamp': datetime.now().isoformat()
     })
 

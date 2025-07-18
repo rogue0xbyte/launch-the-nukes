@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import multiprocessing
 import signal
 import sys
@@ -179,10 +179,9 @@ class RedisJobQueue:
         """Get the position of a job in the queue (1-based index)"""
         try:
             pending_jobs = self.redis_client.lrange(self.queue_key, 0, -1)
-            job_id_bytes = job_id.encode('utf-8')
             
             for i, pending_job_id in enumerate(pending_jobs):
-                if pending_job_id == job_id_bytes:
+                if pending_job_id == job_id:
                     return i + 1  # 1-based position
             
             # If not in pending queue, check if it's processing or completed
@@ -405,7 +404,7 @@ class LLMProcessor:
         except Exception as e:
             raise Exception(f"Error processing prompt: {str(e)}")
 
-def worker_process(redis_url: str, max_concurrent_jobs: int = 1):
+def worker_process(redis_url: str):
     """Worker process that processes jobs from the queue"""
     print(f"Starting worker process (PID: {os.getpid()})")
     
@@ -495,7 +494,7 @@ class JobManager:
         for i in range(self.num_workers):
             worker = multiprocessing.Process(
                 target=worker_process,
-                args=(self.redis_url, 1),
+                args=(self.redis_url,),
                 name=f"JobWorker-{i}"
             )
             worker.start()
@@ -578,6 +577,5 @@ def check_services():
     except Exception as e:
         print(f"MCP servers not accessible: {e}")
 
-# Run health check when module is imported
-if __name__ != "__main__":
+if __name__ == "__main__":
     check_services()

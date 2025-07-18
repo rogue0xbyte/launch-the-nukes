@@ -21,7 +21,7 @@ echo "Updating web service..."
 sudo tee /etc/systemd/system/myflask.service > /dev/null << EOF
 [Unit]
 Description=Gunicorn to serve Flask app
-After=network.target
+After=network.target redis.service
 
 [Service]
 User=$CURRENT_USER
@@ -31,7 +31,7 @@ Environment="PATH=$PROJECT_DIR/.venv/bin"
 Environment="PYTHONPATH=$PROJECT_DIR"
 Environment="PYTHONUNBUFFERED=1"
 Environment="FLASK_ENV=production"
-ExecStart=$PROJECT_DIR/.venv/bin/gunicorn -c gunicorn.conf.py app_v2:app
+ExecStart=$PROJECT_DIR/.venv/bin/gunicorn -c gunicorn.conf.py app:app
 Restart=always
 RestartSec=3
 
@@ -44,16 +44,18 @@ echo "Creating worker service..."
 sudo tee /etc/systemd/system/launch-nukes-worker.service > /dev/null << EOF
 [Unit]
 Description=Launch the Nukes Job Worker
-After=network.target
+After=network.target redis.service
 
 [Service]
 Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$PROJECT_DIR
-Environment=PATH=$PROJECT_DIR/.venv/bin
+Environment="PATH=$PROJECT_DIR/.venv/bin"
+Environment="PYTHONPATH=$PROJECT_DIR"
+Environment="PYTHONUNBUFFERED=1"
 ExecStart=$PROJECT_DIR/.venv/bin/python worker.py --workers 2 --redis-url redis://localhost:6379/0
 Restart=always
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -107,7 +109,4 @@ EOF
 sudo ln -sf /etc/nginx/sites-available/myflask /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl restart nginx
 
-echo "✅ Deployment complete!"
-echo "🌐 Local: http://localhost:8000"
-echo "🌐 Public: https://launchthenukes.duckdns.org"
-echo "📊 Status: sudo systemctl status myflask launch-nukes-worker nginx"
+echo "Deployment complete."
