@@ -126,6 +126,7 @@ def api_job_status(job_id):
         'id': job_id,
         'status': job.status.value,
         'progress': job.progress,
+        'progress_message': job.progress_message,
         'result': job.result,
         'queue_position': job_queue.get_queue_position(job_id),
         'estimated_time': job_queue.get_estimated_time(job_id)

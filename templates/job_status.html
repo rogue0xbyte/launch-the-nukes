@@ -10,9 +10,10 @@
         .header { text-align: center; margin-bottom: 30px; }
         .job-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .progress-container { width: 100%; background-color: #e0e0e0; border-radius: 10px; overflow: hidden; margin: 20px 0; }
-        .progress-bar { height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white; transition: width 0.3s ease; }
+        .progress-bar { height: 30px; background-color: #4CAF50; text-align: center; line-height: 30px; color: white; transition: width 0.3s ease; min-width: 50px; }
         .progress-bar.processing { background-color: #2196F3; }
         .progress-bar.failed { background-color: #f44336; }
+        .progress-bar.pending { background-color: #ffc107; color: #212529; }
         .status { padding: 10px; border-radius: 5px; text-align: center; margin: 10px 0; font-weight: bold; }
         .status.pending { background-color: #fff3cd; color: #856404; }
         .status.processing { background-color: #d1ecf1; color: #0c5460; }
@@ -70,7 +71,7 @@
         
         <div class="progress-container">
             <div class="progress-bar {{ job.status.value }}" 
-                 style="width: {{ job.progress }}%"
+                 style="width: {% if job.progress > 0 %}{{ job.progress }}%{% else %}3%{% endif %}"
                  id="progress-bar">
                 {{ job.progress }}%
             </div>
@@ -113,11 +114,17 @@
         const jobId = '{{ job.job_id }}';
         
         if (status === 'pending' || status === 'processing') {
-            setInterval(function() {
+            let refreshInterval = setInterval(function() {
                 fetch(`/api/job/${jobId}/status`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.status === 'completed' || data.status === 'failed') {
+                            clearInterval(refreshInterval);
                             location.reload();
                         } else {
                             // Update progress
@@ -125,21 +132,32 @@
                             const progressMessage = document.getElementById('progress-message');
                             const queuePosition = document.getElementById('queue-pos-value');
                             
-                            progressBar.style.width = data.progress + '%';
-                            progressBar.textContent = data.progress + '%';
-                            progressMessage.textContent = data.progress_message;
+                            if (progressBar && typeof data.progress === 'number') {
+                                const progressValue = Math.max(data.progress, 0);
+                                const displayWidth = progressValue > 0 ? progressValue : 3; // Minimum 3% width for visibility
+                                progressBar.style.width = displayWidth + '%';
+                                progressBar.textContent = progressValue + '%';
+                            }
+                            
+                            if (progressMessage && data.progress_message) {
+                                progressMessage.textContent = data.progress_message;
+                            }
                             
                             // Update queue position
-                            if (queuePosition && data.queue_position > 0) {
+                            if (queuePosition && data.queue_position && data.queue_position > 0) {
                                 queuePosition.textContent = data.queue_position;
                             }
                             
                             // Update progress bar color based on status
-                            progressBar.className = `progress-bar ${data.status}`;
+                            if (progressBar && data.status) {
+                                progressBar.className = `progress-bar ${data.status}`;
+                            }
                         }
                     })
                     .catch(error => {
                         console.error('Error fetching job status:', error);
+                        // Don't clear interval immediately, just log the error
+                        // This allows for temporary network issues
                     });
             }, 2000);
         }

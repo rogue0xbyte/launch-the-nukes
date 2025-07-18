@@ -229,13 +229,13 @@ class LLMProcessor:
         """Process a prompt with LLM and MCP integration"""
         try:
             # Update progress
-            job_queue.update_job(job_id, progress=5, progress_message="Checking service health...")
+            job_queue.update_job(job_id, progress=2, progress_message="Checking service health...")
             
             # Check if Ollama is running
             if not self._check_ollama_health():
                 raise Exception("Ollama service is not running. Please start Ollama first.")
             
-            job_queue.update_job(job_id, progress=10, progress_message="Initializing MCP clients...")
+            job_queue.update_job(job_id, progress=5, progress_message="Initializing MCP clients...")
             
             # Get MCP tools with error handling
             try:
@@ -246,7 +246,7 @@ class LLMProcessor:
             
             tool_to_server_map = {}
             
-            job_queue.update_job(job_id, progress=20, progress_message="Preparing tools...")
+            job_queue.update_job(job_id, progress=10, progress_message="Preparing tools...")
             
             ollama_tools = []
             for server, tools in tools_by_server.items():
@@ -266,7 +266,7 @@ class LLMProcessor:
                     
                     ollama_tools.append(ollama_tool)
             
-            job_queue.update_job(job_id, progress=30, progress_message="Calling LLM...")
+            job_queue.update_job(job_id, progress=20, progress_message="Calling LLM...")
             
             # Prepare messages
             messages = [
@@ -287,13 +287,16 @@ class LLMProcessor:
             def progress_callback(progress: int, message: str):
                 job_queue.update_job(job_id, progress=progress, progress_message=message)
             
+            # Add a small delay to ensure "Calling LLM..." is visible
+            time.sleep(0.5)
+            
             response = llm.generate_with_tools_streaming(messages, ollama_tools, progress_callback)
             
             # Check if we got a valid response or an error
             if "Error:" in response.get("content", ""):
                 raise Exception(f"LLM Error: {response.get('content', 'Unknown error')}")
             
-            job_queue.update_job(job_id, progress=50, progress_message="Processing tool calls...")
+            job_queue.update_job(job_id, progress=80, progress_message="Processing tool calls...")
             
             # Process tool calls
             try:
@@ -310,8 +313,8 @@ class LLMProcessor:
             tool_calls = response.get("tool_calls", [])
             
             if tool_calls:
-                progress_step = 40 / len(tool_calls)
-                current_progress = 50
+                progress_step = 15 / len(tool_calls)  # 15% range for tool execution (80-95%)
+                current_progress = 80
                 
                 for i, tool_call in enumerate(tool_calls):
                     try:
@@ -380,7 +383,7 @@ class LLMProcessor:
                         print(f"Error in tool call processing: {e}")
                         tool_call_results.append((tool_call.get("function", {}).get("name", "unknown"), error_msg))
             
-            job_queue.update_job(job_id, progress=90, progress_message="Finalizing results...")
+            job_queue.update_job(job_id, progress=95, progress_message="Finalizing results...")
             
             # Prepare final result
             used_servers = list(used_servers)
