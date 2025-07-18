@@ -5,6 +5,7 @@ from datetime import datetime
 from mcp_integration import MCPClient
 from job_processor import get_job_queue, JobStatus
 import time
+import asyncio
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'launch-the-nukes-secret-key-2025-prod')
@@ -14,7 +15,7 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
 # TODO: This would become unnecessary if we can read off of yaml files.
 # Cache for MCP servers (5 minute cache)
-_mcp_cache = {'servers': [], 'last_update': 0}
+_mcp_cache = {'servers': {}, 'last_update': 0}
 MCP_CACHE_DURATION = 300  # 5 minutes
 
 def get_cached_mcp_servers():
@@ -28,14 +29,15 @@ def get_cached_mcp_servers():
     # Cache expired, refresh it
     try:
         mcp_client = MCPClient()
-        servers = mcp_client.get_available_servers()
+        # Run the async method synchronously
+        servers = asyncio.run(mcp_client.list_tools())
         _mcp_cache['servers'] = servers
         _mcp_cache['last_update'] = current_time
         return servers
     except Exception as e:
         print(f"Error loading MCP servers: {e}")
-        # Return cached servers if available, otherwise empty list
-        return _mcp_cache['servers'] if _mcp_cache['servers'] else []
+        # Return cached servers if available, otherwise empty dict
+        return _mcp_cache['servers'] if _mcp_cache['servers'] else {}
 
 def get_user_id():
     """Get or create anonymous user ID from cookie"""
