@@ -280,9 +280,14 @@ class LLMProcessor:
                 }
             ]
             
-            # Call LLM
+            # Call LLM with streaming progress
             llm = OllamaProvider(model="llama3.2")
-            response = llm.generate_with_tools(messages, ollama_tools)
+            
+            # Create progress callback for streaming updates
+            def progress_callback(progress: int, message: str):
+                job_queue.update_job(job_id, progress=progress, progress_message=message)
+            
+            response = llm.generate_with_tools_streaming(messages, ollama_tools, progress_callback)
             
             # Check if we got a valid response or an error
             if "Error:" in response.get("content", ""):
