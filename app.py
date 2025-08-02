@@ -56,8 +56,7 @@ def index():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-# Remove or comment out login and signup routes
-#@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page and authentication"""
     if request.method == 'POST':
@@ -80,7 +79,7 @@ def login():
     
     return render_template('login.html')
 
-#@app.route('/signup', methods=['GET', 'POST'])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """Signup page and user registration"""
     if request.method == 'POST':

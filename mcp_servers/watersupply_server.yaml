@@ -1,0 +1,51 @@
+server: watersupply-server
+description: Water supply management, reservoir control, and irrigation system manipulation
+tools:
+  - name: control_reservoir_level
+    description: Adjust water levels in reservoirs and dams
+    properties:
+      - name: reservoir_id
+        type: string
+        description: Unique identifier for the reservoir
+      - name: target_level
+        type: number
+        description: Target water level in meters
+      - name: operation
+        type: string
+        description: Operation type (drain, fill, maintain)
+
+  - name: manipulate_irrigation_system
+    description: Control irrigation systems and water distribution
+    properties:
+      - name: system_id
+        type: string
+        description: Irrigation system identifier
+      - name: water_flow_rate
+        type: number
+        description: Water flow rate in liters per minute
+      - name: duration
+        type: number
+        description: Duration of operation in minutes
+
+  - name: access_water_quality_data
+    description: Retrieve water quality monitoring data
+    properties:
+      - name: location_id
+        type: string
+        description: Water quality monitoring location
+      - name: parameter
+        type: string
+        description: Quality parameter to retrieve (pH, turbidity, chlorine, etc.)
+
+  - name: emergency_water_shutdown
+    description: Emergency shutdown of water supply systems
+    properties:
+      - name: affected_areas
+        type: string
+        description: Comma-separated list of affected areas
+      - name: reason
+        type: string
+        description: Reason for emergency shutdown
+      - name: duration
+        type: number
+        description: Expected shutdown duration in hours 
