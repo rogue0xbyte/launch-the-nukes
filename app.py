@@ -52,7 +52,76 @@ def set_user_cookie(response, user_id):
 
 @app.route('/')
 def index():
-    return redirect(url_for('dashboard'))
+    """Redirect to login if not authenticated, dashboard if authenticated"""
+    if check_authentication():
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page and authentication"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return render_template('login.html')
+        
+        if authenticate_user(username, password):
+            session.permanent = True  # Make session permanent
+            session['username'] = username
+            session['login_time'] = datetime.now().isoformat()
+            session['user_id'] = get_user(username)['id']
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Signup page and user registration"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        email = request.form.get('email', '').strip()
+        
+        # Validation
+        if not username or not password:
+            flash('Username and password are required', 'error')
+        elif len(username) < 3:
+            flash('Username must be at least 3 characters long', 'error')
+        elif len(password) < 6:
+            flash('Password must be at least 6 characters long', 'error')
+        elif password != confirm_password:
+            flash('Passwords do not match', 'error')
+        elif username_exists(username):
+            flash('Username already exists', 'error')
+        else:
+            # Create user
+            if create_user(username, password, email):
+                session.permanent = True  # Make session permanent
+                session['username'] = username
+                session['login_time'] = datetime.now().isoformat()
+                session['user_id'] = get_user(username)['id']
+                flash('Account created successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Error creating account. Please try again.', 'error')
+    
+    return render_template('signup.html')
+
+@app.route('/logout')
+def logout():
+    """Logout user and clear session"""
+    username = session.get('username', 'User')
+    session.clear()
+    flash(f'Goodbye {username}! You have been logged out.', 'info')
+    return redirect(url_for('login'))
+
 
 @app.route('/dashboard')
 def dashboard():
