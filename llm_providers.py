@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from config import config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,11 +28,62 @@ class LLMProvider(ABC):
         pass
 
 class OllamaProvider(LLMProvider):
-    def __init__(self, model: str = "llama3.2", base_url: str = "http://localhost:11434"):
+    def __init__(self, model: str = "llama3.2", base_url: str = None):
+        if base_url is None:
+            base_url = config.effective_ollama_url
         self.model = model
         self.base_url = base_url
         self.client = None
         self._init_client()
+        
+        # Try to auto-detect available model
+        self._ensure_model_available()
+    
+    def _ensure_model_available(self):
+        """Check what models are available and pick the best one"""
+        try:
+            import httpx
+            if not self.client:
+                return
+                
+            response = self.client.get(f"{self.base_url}/api/tags")
+            if response.status_code == 200:
+                models_data = response.json()
+                models = models_data.get("models", [])
+                
+                if not models:
+                    print("⚠️ No models found in Ollama. Service may still be starting up.")
+                    return
+                
+                # Get available model names
+                model_names = [m.get("name", "").split(":")[0] for m in models]
+                model_names = [name for name in model_names if name]  # Remove empty names
+                
+                print(f"🧠 Available models: {model_names}")
+                
+                # Try to find our preferred model or pick the first available
+                preferred_models = ["llama3.2", "llama3", "tinyllama", "llama2"]
+                
+                for preferred in preferred_models:
+                    if any(preferred in name for name in model_names):
+                        # Get the full model name with tag
+                        for model_info in models:
+                            full_name = model_info.get("name", "")
+                            if preferred in full_name:
+                                if self.model != full_name:
+                                    print(f"🔄 Switching from {self.model} to {full_name}")
+                                    self.model = full_name
+                                return
+                
+                # If no preferred model found, use the first available
+                if models:
+                    first_model = models[0].get("name", "")
+                    if first_model and self.model != first_model:
+                        print(f"🔄 Using first available model: {first_model}")
+                        self.model = first_model
+                        
+        except Exception as e:
+            print(f"Could not check available models: {e}")
 
     def _init_client(self):
         try:
