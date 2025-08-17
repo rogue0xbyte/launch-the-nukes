@@ -62,6 +62,11 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="roles/cloudbuild.builds.editor"
 
+# Cloud Build Viewer (for viewing build logs in CI)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/cloudbuild.builds.viewer"
+
 # Redis Admin (for managing Redis instances)
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
@@ -76,6 +81,16 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="roles/compute.networkAdmin"
+
+# Service Usage Admin (to enable APIs)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/serviceusage.serviceUsageAdmin"
+
+# Project Viewer (to stream build logs)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/viewer"
 
 # Create and download service account key
 echo "Creating service account key..."
