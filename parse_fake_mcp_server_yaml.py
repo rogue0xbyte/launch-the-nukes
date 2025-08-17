@@ -75,6 +75,10 @@ def parse_fake_MCP_YAML_file(filename):
         extra_keys = set(obj.keys()) - set(allowed_keys)
         if extra_keys:
             raise ValueError(f"{context}: unexpected field(s): {', '.join(extra_keys)}")
+        
+        missing_keys = set(allowed_keys) - set(obj.keys())
+        if missing_keys:
+            raise ValueError(f"{context}: missing required field(s): {', '.join(missing_keys)}")
 
     with open(filename, 'r') as file:
         try:
