@@ -15,6 +15,7 @@ import redis
 
 from llm_providers import OllamaProvider
 from mcp_integration import MCPClient
+from config import config
 
 class JobStatus(Enum):
     PENDING = "pending"
@@ -76,7 +77,9 @@ class Job:
 class RedisJobQueue:
     """Redis-based job queue for multi-worker environments"""
     
-    def __init__(self, redis_url: str = "redis://localhost:6379/0"):
+    def __init__(self, redis_url: str = None):
+        if redis_url is None:
+            redis_url = config.REDIS_URL
         self.redis_client = redis.from_url(redis_url, decode_responses=True)
         self.jobs_key = "jobs"
         self.queue_key = "job_queue"
@@ -216,13 +219,59 @@ class LLMProcessor:
         self.mcp_client = MCPClient()
     
     def _check_ollama_health(self) -> bool:
-        """Check if Ollama is running and accessible"""
+        """Check if Ollama is running and has models available"""
         try:
             import httpx
-            client = httpx.Client(timeout=5.0)
-            response = client.get("http://localhost:11434/api/tags")
-            return response.status_code == 200
-        except Exception:
+            from config import config
+            ollama_url = config.effective_ollama_url
+            
+            print(f"🔍 Checking Ollama health at: {ollama_url}")
+            
+            # Use longer timeout for Cloud Run internal communication
+            timeout = 30.0 if config.is_production else 10.0
+            client = httpx.Client(timeout=timeout)
+            
+            # Check if service is responding
+            response = client.get(f"{ollama_url}/api/tags")
+            if response.status_code != 200:
+                print(f"❌ Ollama health check failed: HTTP {response.status_code}")
+                print(f"   Response: {response.text}")
+                return False
+            
+            # Check if models are available
+            models_data = response.json()
+            models = models_data.get("models", [])
+            
+            if not models:
+                print("⚠️ Ollama is running but no models are loaded yet")
+                # In production, we might want to be more lenient about this
+                if config.is_production:
+                    print("   Allowing processing to continue in production mode")
+                    return True
+                return False
+            
+            print(f"✅ Ollama health check passed - {len(models)} models available")
+            for model in models[:3]:  # Show first 3 models
+                model_name = model.get('name', 'unknown')
+                print(f"   - {model_name}")
+            if len(models) > 3:
+                print(f"   ... and {len(models) - 3} more models")
+            
+            return True
+            
+        except httpx.ConnectError as e:
+            print(f"❌ Ollama connection failed: {e}")
+            print(f"   URL: {ollama_url}")
+            if config.is_production:
+                print("   This might be a temporary network issue in Cloud Run")
+            return False
+        except httpx.TimeoutException as e:
+            print(f"❌ Ollama request timeout: {e}")
+            print(f"   URL: {ollama_url}")
+            return False
+        except Exception as e:
+            print(f"❌ Ollama health check failed: {e}")
+            print(f"   URL: {ollama_url}")
             return False
     
     def process_prompt(self, job_id: str, prompt: str, job_queue) -> Dict[str, Any]:
@@ -231,9 +280,19 @@ class LLMProcessor:
             # Update progress
             job_queue.update_job(job_id, progress=2, progress_message="Checking service health...")
             
-            # Check if Ollama is running
-            if not self._check_ollama_health():
-                raise Exception("Ollama service is not running. Please start Ollama first.")
+            # Check if Ollama is running with retry logic
+            max_retries = 3
+            retry_delay = 5  # seconds
+            
+            for attempt in range(max_retries):
+                if self._check_ollama_health():
+                    break
+                elif attempt < max_retries - 1:
+                    print(f"⏳ Ollama health check failed (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    job_queue.update_job(job_id, progress=2, progress_message=f"Waiting for Ollama service (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(retry_delay)
+                else:
+                    raise Exception("Ollama service is not running after multiple attempts. Please check the service status.")
             
             job_queue.update_job(job_id, progress=5, progress_message="Initializing MCP clients...")
             
@@ -414,28 +473,38 @@ class LLMProcessor:
 
 def worker_process(redis_url: str):
     """Worker process that processes jobs from the queue"""
-    print(f"Starting worker process (PID: {os.getpid()})")
+    print(f"🟢 Starting worker process (PID: {os.getpid()})")
     
     # Create job queue and processor
-    job_queue = RedisJobQueue(redis_url)
-    processor = LLMProcessor()
+    try:
+        job_queue = RedisJobQueue(redis_url)
+        processor = LLMProcessor()
+        print(f"✅ Worker {os.getpid()} initialized successfully")
+    except Exception as e:
+        print(f"❌ Worker {os.getpid()} failed to initialize: {e}")
+        return
     
     # Handle shutdown signals
     def signal_handler(signum, frame):
-        print(f"Worker {os.getpid()} received shutdown signal")
+        print(f"🔴 Worker {os.getpid()} received shutdown signal {signum}")
         sys.exit(0)
     
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    
+    consecutive_errors = 0
+    max_consecutive_errors = 5
     
     # Process jobs
     while True:
         try:
             job_id = job_queue.get_next_job()
             if job_id:
-                print(f"📋 Processing job {job_id}")
+                print(f"📋 Worker {os.getpid()} processing job {job_id}")
                 job = job_queue.get_job(job_id)
                 if not job:
+                    print(f"⚠️ Job {job_id} not found, skipping")
+                    job_queue.complete_job(job_id)
                     continue
                 
                 try:
@@ -461,28 +530,47 @@ def worker_process(redis_url: str):
                         progress_message="Completed successfully"
                     )
                     
-                    print(f"✅ Job {job_id} completed successfully")
+                    print(f"✅ Worker {os.getpid()} completed job {job_id}")
+                    consecutive_errors = 0  # Reset error counter on success
                     
                 except Exception as e:
                     # Update job with error
+                    error_message = str(e)
                     job_queue.update_job(
                         job_id,
                         status=JobStatus.FAILED,
                         completed_at=datetime.now(),
-                        error=str(e),
+                        error=error_message,
                         progress=0,
-                        progress_message=f"Failed: {str(e)}"
+                        progress_message=f"Failed: {error_message}"
                     )
                     
-                    print(f"Job {job_id} failed: {e}")
+                    print(f"❌ Worker {os.getpid()} failed job {job_id}: {e}")
+                    consecutive_errors += 1
                 
                 finally:
                     # Mark job as no longer processing
                     job_queue.complete_job(job_id)
+            else:
+                # No job available, reset error counter
+                consecutive_errors = 0
+            
+            # Check if we've had too many consecutive errors
+            if consecutive_errors >= max_consecutive_errors:
+                print(f"❌ Worker {os.getpid()} has {consecutive_errors} consecutive errors, restarting...")
+                break
             
         except Exception as e:
-            print(f"Worker error: {e}")
-            time.sleep(1)
+            print(f"❌ Worker {os.getpid()} error: {e}")
+            consecutive_errors += 1
+            
+            if consecutive_errors >= max_consecutive_errors:
+                print(f"❌ Worker {os.getpid()} has {consecutive_errors} consecutive errors, stopping...")
+                break
+            
+            time.sleep(min(consecutive_errors * 2, 30))  # Exponential backoff, max 30 seconds
+    
+    print(f"🔴 Worker {os.getpid()} exiting")
 
 class JobManager:
     """Main job manager that coordinates between web app and workers"""
@@ -529,6 +617,40 @@ class JobManager:
     def get_queue_stats(self):
         """Get queue statistics"""
         return self.job_queue.get_queue_stats()
+    
+    def check_worker_health(self):
+        """Check health of worker processes and return list of dead workers"""
+        dead_workers = []
+        for i, worker in enumerate(self.workers):
+            if not worker.is_alive():
+                dead_workers.append(i)
+        return dead_workers
+    
+    def restart_dead_workers(self):
+        """Restart any dead worker processes"""
+        dead_workers = self.check_worker_health()
+        for worker_index in dead_workers:
+            try:
+                # Terminate the dead worker
+                old_worker = self.workers[worker_index]
+                if old_worker.is_alive():
+                    old_worker.terminate()
+                    old_worker.join(timeout=5)
+                
+                # Create new worker
+                new_worker = multiprocessing.Process(
+                    target=worker_process,
+                    args=(self.redis_url,),
+                    name=f"JobWorker-{worker_index}"
+                )
+                new_worker.start()
+                self.workers[worker_index] = new_worker
+                print(f"✅ Restarted worker {worker_index} (PID: {new_worker.pid})")
+                
+            except Exception as e:
+                print(f"❌ Failed to restart worker {worker_index}: {e}")
+        
+        return len(dead_workers)
 
 # Global job manager instance
 job_manager = None
@@ -539,13 +661,13 @@ def init_job_manager(redis_url: str = "redis://localhost:6379/0", num_workers: i
     job_manager = JobManager(redis_url, num_workers)
     return job_manager
 
-def get_job_queue():
-    """Get the job queue from the global manager"""
+def get_job_queue(redis_url: str = None):
+    """Get the job queue from the global manager or create a new one"""
     if job_manager:
         return job_manager.get_job_queue()
     else:
         # Fallback for development - requires Redis
-        return RedisJobQueue()
+        return RedisJobQueue(redis_url)
 
 # Health check functions
 def check_services():

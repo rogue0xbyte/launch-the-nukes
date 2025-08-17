@@ -14,6 +14,7 @@ import sys
 import signal
 import time
 from job_processor import JobManager, check_services
+from config import config
 
 # Configure logging for systemd
 logging.basicConfig(
@@ -27,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(description='Job processing worker')
-    parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
-    parser.add_argument('--redis-url', default='redis://localhost:6379/0', help='Redis URL')
+    parser.add_argument('--workers', type=int, default=config.NUM_WORKERS, help='Number of worker processes')
+    parser.add_argument('--redis-url', default=config.REDIS_URL, help='Redis URL')
     parser.add_argument('--shutdown-timeout', type=int, default=30, help='Graceful shutdown timeout in seconds')
     
     args = parser.parse_args()

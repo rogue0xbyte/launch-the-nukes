@@ -6,17 +6,14 @@ from mcp_integration import MCPClient
 from job_processor import get_job_queue, JobStatus
 import time
 import asyncio
+from config import config
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'launch-the-nukes-secret-key-2025-prod')
+app.secret_key = config.SECRET_KEY
 
-# Redis configuration
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-
-# TODO: This would become unnecessary if we can read off of yaml files.
 # Cache for MCP servers (5 minute cache)
 _mcp_cache = {'servers': {}, 'last_update': 0}
-MCP_CACHE_DURATION = 300  # 5 minutes
+MCP_CACHE_DURATION = config.MCP_CACHE_DURATION
 
 def get_cached_mcp_servers():
     """Get MCP servers with caching to avoid slow dashboard loads"""
@@ -78,7 +75,7 @@ def submit():
         return redirect(url_for('dashboard'))
     
     # Get job queue (connects to Redis directly)
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     if not job_queue:
         flash('Job processing service unavailable', 'error')
         return redirect(url_for('dashboard'))
@@ -92,7 +89,7 @@ def submit():
 @app.route('/job/<job_id>')
 def job_status(job_id):
     user_id = get_user_id()
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     
     if not job_queue:
         flash('Job processing service unavailable', 'error')
@@ -113,7 +110,7 @@ def job_status(job_id):
 
 @app.route('/api/job/<job_id>/status')
 def api_job_status(job_id):
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     
     if not job_queue:
         return jsonify({'error': 'Job processing service unavailable'}), 503
@@ -141,7 +138,7 @@ def api_mcp_servers():
 
 @app.route('/api/queue/stats')
 def api_queue_stats():
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     
     if not job_queue:
         return jsonify({'error': 'Job processing service unavailable'}), 503
@@ -152,7 +149,7 @@ def api_queue_stats():
 @app.route('/results/<job_id>')
 def results(job_id):
     user_id = get_user_id()
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     job = job_queue.get_job(job_id)
     
     if not job or job.status != JobStatus.COMPLETED:
@@ -168,7 +165,7 @@ def results(job_id):
 @app.route('/my-jobs')
 def my_jobs():
     user_id = get_user_id()
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     user_jobs = job_queue.get_user_jobs(user_id)
     
     response = make_response(render_template('my_jobs.html', 
@@ -180,7 +177,7 @@ def my_jobs():
 @app.route('/health')
 def health_check():
     """Health check endpoint - doesn't require user tracking"""
-    job_queue = get_job_queue()
+    job_queue = get_job_queue(config.REDIS_URL)
     redis_status = "healthy" if job_queue else "unavailable"
     
     return jsonify({
@@ -194,4 +191,4 @@ def not_found(error):
     return render_template('404.html'), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)
