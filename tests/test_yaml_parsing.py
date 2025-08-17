@@ -279,8 +279,11 @@ tools:
             
             results = parse_fake_MCP_YAML_directory(temp_dir)
             assert len(results) == 2
-            assert results[0]["server"] == "server1"
-            assert results[1]["server"] == "server2"
+            
+            # Check that both servers are present (order doesn't matter)
+            server_names = [result["server"] for result in results]
+            assert "server1" in server_names
+            assert "server2" in server_names
             
         finally:
             shutil.rmtree(temp_dir)
