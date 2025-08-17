@@ -55,6 +55,7 @@ deploy.sh
 setup-local.sh
 *.yaml
 !cloudrun-*.yaml
+!mcp_servers/*.yaml
 
 # Temporary files
 cloudrun-*-configured.yaml

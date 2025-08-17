@@ -1,0 +1,49 @@
+name: Deploy to Google Cloud Platform
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+    types: [ closed ]
+
+env:
+  PROJECT_ID: launch-the-nukes
+  GOOGLE_CLOUD_PROJECT: launch-the-nukes
+
+jobs:
+  deploy:
+    name: Deploy to GCP
+    runs-on: ubuntu-latest
+    
+    # Only run on main/master branch pushes or merged PRs
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: 'latest'
+        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+        export_default_credentials: true
+        
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker
+      
+    - name: Set executable permissions on deploy script
+      run: chmod +x ./deploy-gcp.sh
+      
+    - name: Run deployment script
+      run: ./deploy-gcp.sh
+      env:
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        
+    - name: Verify deployment
+      run: |
+        echo "Deployment completed successfully!"
+        echo "Frontend URL: https://launch-the-nukes-frontend-$(gcloud config get-value project).a.run.app"
+        echo "Worker URL: https://launch-the-nukes-worker-$(gcloud config get-value project).a.run.app"

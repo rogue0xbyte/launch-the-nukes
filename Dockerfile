@@ -30,4 +30,4 @@ USER app
 EXPOSE 8080
 
 # Command to run the application
-CMD exec gunicorn --bind :$PORT --workers 4 --timeout 0 app:app
+CMD ["sh", "-c", "exec gunicorn --bind :${PORT:-8080} --workers 4 --timeout 0 app:app"]

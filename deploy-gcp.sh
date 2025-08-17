@@ -98,10 +98,15 @@ images: ['gcr.io/$PROJECT_ID/$JOB_NAME:latest']
 EOF
 gcloud builds submit --config=worker-build.yaml .
 
+# Generate deployment nonce to force new revisions
+DEPLOY_NONCE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "🕐 Deploy nonce: $DEPLOY_NONCE"
+
 # Update Cloud Run service configuration with actual values
 echo "📝 Updating service configuration..."
 sed -e "s/PROJECT_ID/$PROJECT_ID/g" \
     -e "s/REDIS_HOST_IP/$REDIS_HOST/g" \
+    -e "s/DEPLOY_NONCE/$DEPLOY_NONCE/g" \
     cloudrun-frontend.yaml > cloudrun-frontend-configured.yaml
 
 # Deploy Cloud Run service
@@ -132,7 +137,8 @@ gcloud run deploy launch-nukes-ollama \
     --execution-environment=gen2 \
     --cpu-boost \
     --no-gpu-zonal-redundancy \
-    --set-env-vars="OLLAMA_HOST=0.0.0.0,OLLAMA_PORT=11434,OLLAMA_ORIGINS=*"
+    --set-env-vars="OLLAMA_HOST=0.0.0.0,OLLAMA_PORT=11434,OLLAMA_ORIGINS=*" \
+    --update-annotations="deploy.nonce/timestamp=$DEPLOY_NONCE"
 
 # Allow unauthenticated access to Ollama service
 echo "🔓 Setting up public access for Ollama AI service..."
@@ -172,6 +178,7 @@ echo "📝 Updating worker service configuration..."
 sed -e "s/PROJECT_ID/$PROJECT_ID/g" \
     -e "s/REDIS_HOST_IP/$REDIS_HOST/g" \
     -e "s|OLLAMA_CLOUD_URL|$OLLAMA_CLOUD_URL|g" \
+    -e "s/DEPLOY_NONCE/$DEPLOY_NONCE/g" \
     cloudrun-worker.yaml > cloudrun-worker-configured.yaml
 
 # Deploy Cloud Run worker service
@@ -191,6 +198,7 @@ WORKER_URL=$(gcloud run services describe launch-the-nukes-worker --region=$REGI
 
 echo ""
 echo "✅ Deployment complete!"
+echo "🕐 Deploy nonce: $DEPLOY_NONCE"
 echo "🌐 Frontend URL: $SERVICE_URL"
 echo "🔴 Redis host: $REDIS_HOST"
 echo "🧠 Ollama AI service: $OLLAMA_CLOUD_URL"

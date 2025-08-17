@@ -15,6 +15,7 @@ spec:
         run.googleapis.com/vpc-access-egress: private-ranges-only
         autoscaling.knative.dev/maxScale: "100"
         autoscaling.knative.dev/minScale: "0"
+        deploy.nonce/timestamp: "DEPLOY_NONCE"
     spec:
       containerConcurrency: 1000
       timeoutSeconds: 300

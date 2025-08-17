@@ -15,6 +15,7 @@ spec:
         run.googleapis.com/vpc-access-egress: private-ranges-only
         autoscaling.knative.dev/maxScale: "5"
         autoscaling.knative.dev/minScale: "1"  # Keep at least 1 worker running
+        deploy.nonce/timestamp: "DEPLOY_NONCE"
     spec:
       containerConcurrency: 1
       timeoutSeconds: 3600
@@ -33,7 +34,7 @@ spec:
           value: "6379"
         - name: REDIS_URL
           value: "redis://REDIS_HOST_IP:6379/0"
-        - name: OLLAMA_CLOUD_URL
+        - name: OLLAMA_URL
           value: "OLLAMA_CLOUD_URL"
         - name: NUM_WORKERS
           value: "2"

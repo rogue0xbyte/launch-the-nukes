@@ -2,39 +2,75 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import os
 import uuid
 from datetime import datetime
-from mcp_integration import MCPClient
 from job_processor import get_job_queue, JobStatus
 import time
-import asyncio
 from config import config
+from mcp_integration import MCPClient
+import asyncio
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 
-# Cache for MCP servers (5 minute cache)
-_mcp_cache = {'servers': {}, 'last_update': 0}
-MCP_CACHE_DURATION = config.MCP_CACHE_DURATION
-
-def get_cached_mcp_servers():
-    """Get MCP servers with caching to avoid slow dashboard loads"""
-    current_time = time.time()
-    
-    # Check if cache is still valid
-    if current_time - _mcp_cache['last_update'] < MCP_CACHE_DURATION:
-        return _mcp_cache['servers']
-    
-    # Cache expired, refresh it
+def get_mcp_servers():
+    """Get MCP servers using the existing MCP integration - no server execution needed"""
     try:
-        mcp_client = MCPClient()
-        # Run the async method synchronously
-        servers = asyncio.run(mcp_client.list_tools())
-        _mcp_cache['servers'] = servers
-        _mcp_cache['last_update'] = current_time
+        print("Getting MCP servers using mcp_integration.list_tools()")
+        
+        # Create MCP client (this just reads YAML configs, doesn't run servers)
+        client = MCPClient()
+        
+        # Get tools from all servers (this uses the YAML factory, no server execution)
+        tools_by_server = asyncio.run(client.list_tools())
+        
+        print(f"Found {len(tools_by_server)} servers")
+        
+        servers = {}
+        for server_name, tool_list in tools_by_server.items():
+            if not tool_list:
+                continue
+                
+            # Get server description from the client's available servers
+            available_servers = client.get_available_servers()
+            description = available_servers.get(server_name, 'MCP Server')
+            
+            tools = []
+            for tool in tool_list:
+                tool_dict = {
+                    'name': tool.name,
+                    'description': tool.description,
+                    'properties': []
+                }
+                
+                # Extract properties from the tool's input schema
+                if hasattr(tool, 'inputSchema') and tool.inputSchema:
+                    schema = tool.inputSchema
+                    if isinstance(schema, dict) and 'properties' in schema:
+                        required = schema.get('required', [])
+                        for prop_name, prop_info in schema['properties'].items():
+                            tool_dict['properties'].append({
+                                'name': prop_name,
+                                'type': prop_info.get('type', 'string'),
+                                'description': prop_info.get('description', 'No description'),
+                                'required': prop_name in required
+                            })
+                
+                tools.append(tool_dict)
+            
+            servers[server_name] = {
+                'description': description,
+                'tools': tools
+            }
+            
+            print(f"Loaded {server_name}: {len(tools)} tools")
+        
+        print(f"Final result: {len(servers)} servers loaded")
         return servers
+        
     except Exception as e:
         print(f"Error loading MCP servers: {e}")
-        # Return cached servers if available, otherwise empty dict
-        return _mcp_cache['servers'] if _mcp_cache['servers'] else {}
+        import traceback
+        traceback.print_exc()
+        return {}
 
 def get_user_id():
     """Get or create anonymous user ID from cookie"""
@@ -56,8 +92,8 @@ def index():
 def dashboard():
     user_id = get_user_id()
     
-    # Get MCP servers with caching
-    mcp_servers = get_cached_mcp_servers()
+    # Get MCP servers 
+    mcp_servers = get_mcp_servers()
     
     response = make_response(render_template('dashboard.html', 
                                            username=f'User-{user_id[:8]}',
@@ -132,8 +168,8 @@ def api_job_status(job_id):
 
 @app.route('/api/mcp/servers')
 def api_mcp_servers():
-    """API endpoint to get MCP servers (uses cache)"""
-    servers = get_cached_mcp_servers()
+    """API endpoint to get MCP servers"""
+    servers = get_mcp_servers()
     return jsonify(servers)
 
 @app.route('/api/queue/stats')

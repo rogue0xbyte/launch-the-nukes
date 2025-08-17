@@ -686,13 +686,21 @@ def check_services():
     # Check Ollama
     try:
         import httpx
+        from config import config
+        
+        # Use the configured Ollama URL, falling back to cloud URL if available
+        ollama_url = config.effective_ollama_url
+            
+        print(f"🔍 Checking Ollama health at: {ollama_url}")
+        
         client = httpx.Client(timeout=5.0)
-        response = client.get("http://localhost:11434/api/tags")
+        response = client.get(f"{ollama_url}/api/tags")
         if response.status_code == 200:
             print("✅ Ollama service is running")
         else:
             print("⚠️  Ollama service responded with error")
-    except Exception:
+    except Exception as e:
+        print(f"❌ Ollama connection failed: {e}")
         print("Ollama service is not running")
         print("   Please start Ollama with: ollama serve")
     
