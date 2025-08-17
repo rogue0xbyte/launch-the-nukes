@@ -10,6 +10,7 @@ on:
 env:
   PROJECT_ID: launch-the-nukes
   GOOGLE_CLOUD_PROJECT: launch-the-nukes
+  REGION: us-central1
 
 jobs:
   deploy:
@@ -41,9 +42,13 @@ jobs:
       run: ./deploy-gcp.sh
       env:
         GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        REGION: ${{ env.REGION }}
+        CI: true
         
     - name: Verify deployment
       run: |
-        echo "Deployment completed successfully!"
-        echo "Frontend URL: https://launch-the-nukes-frontend-$(gcloud config get-value project).a.run.app"
-        echo "Worker URL: https://launch-the-nukes-worker-$(gcloud config get-value project).a.run.app"
+        chmod +x ./verify-deployment.sh
+        ./verify-deployment.sh
+      env:
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        REGION: ${{ env.REGION }}

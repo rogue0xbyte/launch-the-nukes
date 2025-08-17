@@ -9,6 +9,7 @@ REGION="${REGION:-us-central1}"
 REDIS_INSTANCE_NAME="launch-nukes-redis"
 SERVICE_NAME="launch-the-nukes-frontend"
 JOB_NAME="launch-the-nukes-worker"
+CI_MODE="${CI:-false}"  # Set to true in CI environments
 
 echo "🚀 Deploying Launch the Nukes to GCP..."
 echo "Project: $PROJECT_ID"
@@ -153,22 +154,33 @@ echo "🧠 Ollama AI service URL: $OLLAMA_CLOUD_URL"
 
 # Test Ollama service connectivity
 echo "🔍 Testing Ollama service connectivity..."
-echo "⏳ Waiting for Ollama to download model (this may take 5-10 minutes on first deployment)..."
+if [ "$CI_MODE" = "true" ]; then
+    echo "⏳ CI Mode: Quick connectivity test (max 3 attempts)..."
+    MAX_ATTEMPTS=3
+else
+    echo "⏳ Waiting for Ollama to download model (this may take 5-10 minutes on first deployment)..."
+    MAX_ATTEMPTS=60
+fi
+
 OLLAMA_READY=false
-for i in {1..60}; do
+for i in $(seq 1 $MAX_ATTEMPTS); do
     if curl -s --max-time 10 "$OLLAMA_CLOUD_URL/api/tags" > /dev/null 2>&1; then
         echo "✅ Ollama service is responding"
         OLLAMA_READY=true
         break
     else
-        echo "⏳ Attempt $i/60: Ollama still starting up..."
+        echo "⏳ Attempt $i/$MAX_ATTEMPTS: Ollama still starting up..."
         sleep 10
     fi
 done
 
 if [ "$OLLAMA_READY" = false ]; then
-    echo "⚠️ Ollama service may still be downloading the model. This can take up to 10 minutes."
-    echo "   Check the logs: gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=launch-nukes-ollama\" --limit=10"
+    if [ "$CI_MODE" = "true" ]; then
+        echo "⚠️ Ollama service not yet responding in CI mode. This is normal - the model download continues in background."
+    else
+        echo "⚠️ Ollama service may still be downloading the model. This can take up to 10 minutes."
+        echo "   Check the logs: gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=launch-nukes-ollama\" --limit=10"
+    fi
 fi
 
 echo "✅ Services are now publicly accessible"

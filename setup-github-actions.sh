@@ -62,6 +62,21 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="roles/cloudbuild.builds.editor"
 
+# Redis Admin (for managing Redis instances)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/redis.admin"
+
+# VPC Access Admin (for managing VPC connectors)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/vpcaccess.admin"
+
+# Compute Network Admin (for VPC connector creation)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/compute.networkAdmin"
+
 # Create and download service account key
 echo "Creating service account key..."
 if [ -f "${KEY_FILE}" ]; then
@@ -76,7 +91,7 @@ echo ""
 echo "✅ Service account setup complete!"
 echo ""
 echo "📋 Next steps:"
-echo "1. Go to your GitHub repository: https://github.com/JustinCappos/ShardGuard"
+echo "1. Go to your GitHub repository: https://github.com/JustinCappos/launch-the-nukes"
 echo "2. Navigate to: Settings → Secrets and Variables → Actions"
 echo "3. Click 'New repository secret'"
 echo "4. Add secret with name: GCP_SERVICE_ACCOUNT_KEY"

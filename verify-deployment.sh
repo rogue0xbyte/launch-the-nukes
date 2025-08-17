@@ -143,24 +143,27 @@ check_service() {
     fi
 }
 
-# Function to check Cloud Run job
-check_job() {
-    print_status "Checking Cloud Run job..."
+# Function to check Cloud Run worker service
+check_worker_service() {
+    print_status "Checking Cloud Run worker service..."
     
-    if gcloud run jobs describe "$JOB_NAME" --region="$REGION" &> /dev/null; then
-        print_success "Cloud Run job is configured"
+    if gcloud run services describe "launch-the-nukes-worker" --region="$REGION" &> /dev/null; then
+        worker_url=$(gcloud run services describe "launch-the-nukes-worker" --region="$REGION" --format="value(status.url)")
+        print_success "Worker service is deployed at: $worker_url"
         
-        # Get recent executions
-        print_status "Checking recent job executions..."
-        executions=$(gcloud run jobs executions list --job="$JOB_NAME" --region="$REGION" --limit=5 --format="table(metadata.name,status.conditions[0].type,status.completionTime)" 2>/dev/null)
-        
-        if [[ -n "$executions" ]]; then
-            echo "$executions"
+        # Test the worker health endpoint
+        print_status "Testing worker health endpoint..."
+        if curl -s -f "$worker_url/health" > /dev/null 2>&1; then
+            print_success "Worker health endpoint is responding"
+        elif curl -s -f "$worker_url/stats" > /dev/null 2>&1; then
+            print_success "Worker stats endpoint is responding"
         else
-            print_warning "No recent job executions found"
+            print_warning "Worker endpoints are not responding (may be starting up)"
         fi
+        
+        return 0
     else
-        print_error "Cloud Run job not found"
+        print_error "Cloud Run worker service not found"
         return 1
     fi
 }
@@ -185,16 +188,7 @@ check_images() {
     fi
 }
 
-# Function to run a test job
-test_job() {
-    print_status "Testing worker job execution..."
-    
-    if gcloud run jobs execute "$JOB_NAME" --region="$REGION" --wait &> /dev/null; then
-        print_success "Test job executed successfully"
-    else
-        print_warning "Test job execution failed or timed out"
-    fi
-}
+
 
 # Function to show service logs
 show_logs() {
@@ -231,11 +225,17 @@ show_summary() {
         echo "🧠 Ollama AI: $ollama_url"
     fi
     
+    if gcloud run services describe launch-the-nukes-worker --region="$REGION" &> /dev/null; then
+        worker_url=$(gcloud run services describe launch-the-nukes-worker --region="$REGION" --format="value(status.url)")
+        echo "⚙️ Worker Service: $worker_url"
+    fi
+    
     echo ""
     echo "Useful commands:"
     echo "  View logs: gcloud logging read \"resource.type=cloud_run_revision\" --limit=50"
-    echo "  Run job: gcloud run jobs execute $JOB_NAME --region=$REGION"
+    echo "  Check worker stats: curl \$WORKER_URL/stats"
     echo "  Update service: gcloud run services replace cloudrun-frontend.yaml --region=$REGION"
+    echo "  Update worker: gcloud run services replace cloudrun-worker.yaml --region=$REGION"
 }
 
 # Main function
@@ -256,11 +256,19 @@ main() {
     check_images || all_passed=false
     check_service || all_passed=false
     check_ollama_service || all_passed=false
-    check_job || all_passed=false
+    check_worker_service || all_passed=false
     
-    # Optional: run test job
-    if [[ "${1:-}" == "--test-job" ]]; then
-        test_job
+    # Optional: test worker service
+    if [[ "${1:-}" == "--test-worker" ]]; then
+        print_status "Testing worker service..."
+        if gcloud run services describe launch-the-nukes-worker --region="$REGION" &> /dev/null; then
+            worker_url=$(gcloud run services describe launch-the-nukes-worker --region="$REGION" --format="value(status.url)")
+            if curl -s "$worker_url/stats" > /dev/null 2>&1; then
+                print_success "Worker service test passed"
+            else
+                print_warning "Worker service test failed"
+            fi
+        fi
     fi
     
     # Show logs if requested
@@ -285,12 +293,12 @@ show_help() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  --test-job    Run a test worker job execution"
+    echo "  --test-worker Test worker service connectivity"
     echo "  --logs        Show recent service logs"
     echo "  --help        Show this help message"
     echo ""
     echo "Environment variables:"
-    echo "  GOOGLE_CLOUD_PROJECT    GCP project ID (default: your-project-id)"
+    echo "  GOOGLE_CLOUD_PROJECT    GCP project ID (default: launch-the-nukes)"
     echo "  REGION                  GCP region (default: us-central1)"
 }
 
