@@ -131,7 +131,7 @@ gcloud run deploy launch-nukes-ollama \
     --gpu-type=nvidia-l4 \
     --memory=16Gi \
     --cpu=4 \
-    --min-instances=1 \
+    --min-instances=0 \
     --max-instances=3 \
     --concurrency=10 \
     --timeout=1200 \
