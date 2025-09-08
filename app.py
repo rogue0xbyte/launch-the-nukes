@@ -7,9 +7,13 @@ import time
 from config import config
 from mcp_integration import MCPClient
 import asyncio
+from firestore import FirestoreJobStore, Job
+
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
+
+firestore_db=FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
 
 def get_mcp_servers():
     """Get MCP servers using the existing MCP integration - no server execution needed"""
@@ -115,8 +119,19 @@ def submit():
     if not job_queue:
         flash('Job processing service unavailable', 'error')
         return redirect(url_for('dashboard'))
+
+    job_id = str(uuid.uuid4())
+    job = Job(job_id=job_id, 
+                user_id=user_id, 
+                username=f'User-{user_id[:8]}',
+                prompt=user_input, 
+                status=JobStatus.PENDING,
+                created_at=datetime.now(),
+                started_at=datetime.now())
+
+    firestore_db.create_job(job)
     
-    job_id = job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input)
+    job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id)
     
     response = make_response(redirect(url_for('job_status', job_id=job_id)))
     set_user_cookie(response, user_id)

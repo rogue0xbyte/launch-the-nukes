@@ -16,6 +16,9 @@ import redis
 from llm_providers import OllamaProvider
 from mcp_integration import MCPClient
 from config import config
+from firestore import FirestoreJobStore
+
+firestore_db=FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
 
 class JobStatus(Enum):
     PENDING = "pending"
@@ -85,8 +88,7 @@ class RedisJobQueue:
         self.queue_key = "job_queue"
         self.processing_key = "processing_jobs"
         
-    def add_job(self, user_id: str, username: str, prompt: str) -> str:
-        job_id = str(uuid.uuid4())
+    def add_job(self, user_id: str, username: str, prompt: str, job_id:str) -> None:
         job = Job(
             job_id=job_id,
             user_id=user_id,
@@ -104,8 +106,6 @@ class RedisJobQueue:
         
         # Update queue positions
         self._update_queue_positions()
-        
-        return job_id
     
     def get_job(self, job_id: str) -> Optional[Job]:
         job_data = self.redis_client.hget(self.jobs_key, job_id)
@@ -465,6 +465,7 @@ class LLMProcessor:
             }
             
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
+            firestore_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
             
             return result
             
