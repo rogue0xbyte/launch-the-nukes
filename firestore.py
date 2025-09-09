@@ -1,3 +1,4 @@
+# Seeting up the framework (architecture) for GCP Firestore
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from google.cloud import firestore
@@ -26,6 +27,7 @@ class Job:
 
 class FirestoreJobStore:
     def __init__(self, project_id: str):
+        # Initialize Firestore client for the GCP project
         self.db = firestore.Client(project=project_id)
         self.col = self.db.collection("jobs")
 
@@ -46,6 +48,9 @@ class FirestoreJobStore:
         )
 
     def create_job(self, job: Job) -> None:
+        """
+        Creating the document and setting it with the key value as the Job ID
+        """
         self.col.document(job.job_id).set({
             "user_id": job.user_id,
             "username": job.username,
@@ -60,18 +65,23 @@ class FirestoreJobStore:
         })
 
     def get_job(self, job_id: str) -> Optional[Job]:
+        """
+        Retrieve a job by its ID. Returns None if not found.
+        """
         data = self.col.document(job_id).get()
         return self._doc_to_job(data) if data.exists else None
 
     def update_job(self, job_id: str, **fields) -> None:
+        """
+        Updating the Job Fields once the status changes from Queued to Completed
+        Make the least use of this function to keep the system cost efficient and less queried on the DB
+        """
         if "status" in fields and isinstance(fields["status"], JobStatus):
             fields["status"] = fields["status"].value
         self.col.document(job_id).update(fields)
-
+    
+    # This function has not been used yet but will be referenced once the Redis Implementation is limited to caching
     def list_jobs_for_user(self, user_id: str) -> List[Job]:
         q = (self.col.where("user_id", "==", user_id)
                    .order_by("created_at", direction=firestore.Query.DESCENDING))
         return [self._doc_to_job(s) for s in q.stream()]
-
-    def set_queue_position(self, job_id: str, pos: int) -> None:
-        self.col.document(job_id).update({"queue_position": pos})

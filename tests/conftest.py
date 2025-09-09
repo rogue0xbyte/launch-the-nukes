@@ -11,6 +11,7 @@ from yaml_mcp_server_factory import YAMLMCPServerFactory
 from mcp_integration import MCPClient
 from unittest.mock import patch, MagicMock
 
+# Added Firestore mock_client to bypass the Credential requirement for the test cases
 @pytest.fixture(autouse=True)
 def mock_firestore():
     with patch("google.cloud.firestore.Client") as mock_client:

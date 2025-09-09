@@ -464,7 +464,10 @@ class LLMProcessor:
                 'analysis': llm_message
             }
             
+            # Updated the Redis Queue - this will be removed in further commits when the DB structure has been thoroughly tested
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
+            
+            # Updated the firestore with final results of the prompt to be stored in the database
             firestore_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
             
             return result
