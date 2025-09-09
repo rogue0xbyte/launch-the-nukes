@@ -9,7 +9,13 @@ import shutil
 from pathlib import Path
 from yaml_mcp_server_factory import YAMLMCPServerFactory
 from mcp_integration import MCPClient
+from unittest.mock import patch, MagicMock
 
+@pytest.fixture(autouse=True)
+def mock_firestore():
+    with patch("google.cloud.firestore.Client") as mock_client:
+        mock_client.return_value = MagicMock()
+        yield mock_client
 
 @pytest.fixture
 def temp_yaml_dir():
