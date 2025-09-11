@@ -47,6 +47,7 @@ class Job:
     error: Optional[str] = None
     progress: int = 0
     progress_message: str = "Queued"
+
     # Storing the queue position in Redis to process on a FIFO basis
     queue_position: int = 0
 
@@ -149,6 +150,7 @@ class RedisJobQueue:
         result = self.redis_client.brpop(self.queue_key, timeout=1)
         if result:
             _, job_id = result
+
             # Move to processing set
             self.redis_client.sadd(self.processing_key, job_id)
             self._update_queue_positions()
@@ -446,7 +448,8 @@ class LLMProcessor:
                                 used_servers.add(server_name)
                                 try:
                                     result = asyncio.run(self.mcp_client.call_tool(server_name, tool_name, args))
-                                    # Changed the tool calls structure that is acceptable in GCP Firestore
+
+                                    # Changed the tool_call_results structure that is acceptable in GCP Firestore
                                     # Tuples are not accepted in Firestore
                                     tool_call_results.append({
                                         "tool": tool_name,
@@ -492,7 +495,7 @@ class LLMProcessor:
                 'analysis': llm_message
             }
             
-           # Update the Redis Queue temporarily; this will be removed in future commits once the new database structure is fully validated and stable.
+            # Update the Redis Queue temporarily; this will be removed in future commits once the new database structure is fully validated and stable.
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
             
             # Update the firestore with final results of the prompt to be stored in the database
