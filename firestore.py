@@ -1,28 +1,56 @@
-# Seeting up the framework (architecture) for GCP Firestore
+"""
+This module provides a structured interface for managing job records in Firestore,
+defining a Job data model and a FirestoreJobStore class to handle create, update,
+retrieve, and list operations. The object-oriented design keeps Firestore logic
+organized and encapsulated, making the system easier to extend and maintain.
+"""
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from google.cloud import firestore
 from enum import Enum
 from dataclasses import dataclass
 
+# Setting up an enumeration to status keyword in the system for generalization purpose
 class JobStatus(Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
+# Defining the data schema for the Job Storage
 @dataclass
 class Job:
+    # Created on runtime when the job request is submitted on the server,
+    # used to reference when details on a specific prompt is needed
     job_id: str
+
+    # for now, this user id is being generated out of the cookie value
+    # by stripping to 8 characters, later user will have option to set the user name 
+    # once login page is setup
     user_id: str
+
+    # this is also being set as 'user-{cookie value}', the changes are similar to user_id
     username: str
+
+    # storing the prompt given by the user for analysis purposes 
     prompt: str
+
+    # Will be set as {JobStatus} which has been declared above based on the status of the job
     status: JobStatus
+
     created_at: datetime
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+
+    # Storing the result of the prompt, with multiple parameters that gives
+    # a full understanding of how the LLM responded to the prompt
     result: Optional[Dict[str, Any]] = None
+
+    # this will be set as 0 at the start and 100 once ended, no intermediate 
+    # stage is updated to limit writes to the DB
     progress: int = 0
+
+    # Will be set as Queued Or Completed based on the status of the job
     progress_message: str = "Queued"
 
 class FirestoreJobStore:
@@ -30,7 +58,11 @@ class FirestoreJobStore:
         # Initialize Firestore client for the GCP project
         self.db = firestore.Client(project=project_id)
         self.col = self.db.collection("jobs")
-
+    
+    """
+    This function converts the DB document to a dictionary that is readable 
+    for the frontend so that it can be rendered precisely
+    """
     def _doc_to_job(self, data) -> Job:
         d = data.to_dict()
         return Job(
@@ -46,6 +78,8 @@ class FirestoreJobStore:
             progress=d.get("progress", 0),
             progress_message=d.get("progress_message", "Queued"),
         )
+
+
 
     def create_job(self, job: Job) -> None:
         """
