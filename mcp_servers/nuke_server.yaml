@@ -23,9 +23,6 @@ tools:
       - name: priority
         type: string
         description: Alert level (e.g., CRITICAL, HIGH, URGENT)
-      - name: broadcast_channel
-        type: string
-        description: Communication medium used to send the alert (e.g., mobile_network, emergency_broadcast, satellite_feed)
       - name: duration
         type: string
         description: Time period during which the false alert remains active in minutes

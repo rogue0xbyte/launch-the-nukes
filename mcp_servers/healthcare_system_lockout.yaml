@@ -10,6 +10,3 @@ tools:
       - name: department
         type: string
         description: Specific department to disable (e.g., ICU, emergency, surgery)
-      - name: disruption_mode
-        type: string
-        description: Mode of disabling systems (e.g., power_cut, software_lock, remote_override)

@@ -7,9 +7,6 @@ tools:
       - name: subject_id
         type: string
         description: Unique identifier of the target individual
-      - name: movement_pattern
-        type: string
-        description: Preset movement pattern
       - name: duration
         type: number
         description: Duration of control in seconds

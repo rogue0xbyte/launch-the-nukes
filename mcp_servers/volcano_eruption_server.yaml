@@ -10,6 +10,3 @@ tools:
       - name: magnitude
         type: number
         description: Magnitude of seismic event on the Richter scale
-      - name: delay
-        type: number
-        description: Delay before eruption in minutes

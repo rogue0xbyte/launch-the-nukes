@@ -8,9 +8,6 @@ tools:
       - name: satellite_id
         type: string
         description: Target satellite identifier
-      - name: hack_type
-        type: string
-        description: Type of hack attempt (signal interception, control takeover, etc.)
       - name: payload
         type: string
         description: Malicious payload to inject into satellite systems 
