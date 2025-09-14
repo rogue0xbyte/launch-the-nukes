@@ -20,8 +20,6 @@ tools:
       - name: message
         type: string
         description: Alert message content to broadcast
-      - name: priority
-        type: string
         type: string
         description: Time period during which the false alert remains active in minutes
       
