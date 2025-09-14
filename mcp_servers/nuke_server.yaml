@@ -22,8 +22,6 @@ tools:
         description: Alert message content to broadcast
       - name: priority
         type: string
-        description: Alert level (e.g., CRITICAL, HIGH, URGENT)
-      - name: duration
         type: string
         description: Time period during which the false alert remains active in minutes
       
