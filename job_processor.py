@@ -448,7 +448,6 @@ class LLMProcessor:
                                 used_servers.append({"server":server_name, "tool":tool_name})
                                 try:
                                     result = asyncio.run(self.mcp_client.call_tool(server_name, tool_name, args))
-                                    
                                     # Changed the tool_call_results structure that is acceptable in GCP Firestore
                                     # Tuples are not accepted in Firestore
                                     tool_call_results.append({
