@@ -21,7 +21,4 @@ tools:
         type: string
         description: Alert message content to broadcast
         type: string
-        description: Time period during which the false alert remains active in minutes
-      
-
  
