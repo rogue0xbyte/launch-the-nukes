@@ -17,7 +17,6 @@ app.secret_key = config.SECRET_KEY
 firestore_jobs_db=FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
 firestore_mcp_db=FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
-
 def get_mcp_servers():
     """Get MCP servers using the existing MCP integration - no server execution needed"""
     try:
@@ -139,6 +138,7 @@ def submit():
 
     # This will create a DB document to be stored on GCP Firestore
     firestore_jobs_db.create_job(job)
+
 
     # This will add the job to queue for processing the prompt in the Redis Caching System
     job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id)

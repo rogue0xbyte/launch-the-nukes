@@ -1,4 +1,9 @@
-# Setting up the framework (architecture) for GCP Firestore
+"""
+This module provides a structured interface for managing job records in Firestore,
+defining a Job data model and a FirestoreJobStore class to handle create, update,
+retrieve, and list operations. The object-oriented design keeps Firestore logic
+organized and encapsulated, making the system easier to extend and maintain.
+"""
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from google.cloud import firestore
@@ -44,7 +49,7 @@ class Job:
     # this will be set as 0 at the start and 100 once ended, no intermediate 
     # stage is updated to limit writes to the DB
     progress: int = 0
-    
+
     # Will be set as Queued Or Completed based on the status of the job
     progress_message: str = "Queued"
 
@@ -65,6 +70,7 @@ class FirestoreJobStore:
             user_id=d["user_id"],
             username=d["username"],
             prompt=d["prompt"],
+            status=JobStatus(d["status"]),
             created_at=d["created_at"],
             started_at=d.get("started_at"),
             completed_at=d.get("completed_at"),
@@ -83,6 +89,7 @@ class FirestoreJobStore:
             "user_id": job.user_id,
             "username": job.username,
             "prompt": job.prompt,
+            "status": job.status.value,
             "created_at": job.created_at,
             "started_at": job.started_at,
             "completed_at": job.completed_at,
@@ -112,7 +119,6 @@ class FirestoreJobStore:
         q = (self.col.where("user_id", "==", user_id)
                    .order_by("created_at", direction=firestore.Query.DESCENDING))
         return [self._doc_to_job(s) for s in q.stream()]
-
 
 class FirestoreMCPStore:
     def __init__(self, project_id: str):
@@ -171,3 +177,4 @@ class FirestoreMCPStore:
         if doc.exists:
             return doc.to_dict().get("used_servers", {})
         return {}
+

@@ -150,6 +150,7 @@ class RedisJobQueue:
         result = self.redis_client.brpop(self.queue_key, timeout=1)
         if result:
             _, job_id = result
+
             # Move to processing set
             self.redis_client.sadd(self.processing_key, job_id)
             self._update_queue_positions()
@@ -447,6 +448,9 @@ class LLMProcessor:
                                 used_servers.append({"server":server_name, "tool":tool_name})
                                 try:
                                     result = asyncio.run(self.mcp_client.call_tool(server_name, tool_name, args))
+                                    
+                                    # Changed the tool_call_results structure that is acceptable in GCP Firestore
+                                    # Tuples are not accepted in Firestore
                                     tool_call_results.append({
                                         "tool": tool_name,
                                         "result": result
@@ -496,7 +500,8 @@ class LLMProcessor:
             
             # Updated the firestore with final results of the prompt to be stored in the database
             firestore_jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
-            # 
+            
+            # Updated the triggered MCP server collection with used servers for that specific user id
             firestore_mcp_db.update_mcp_triggered(user_id, used_servers)
             
             return result
