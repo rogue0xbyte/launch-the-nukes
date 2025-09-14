@@ -119,3 +119,62 @@ class FirestoreJobStore:
         q = (self.col.where("user_id", "==", user_id)
                    .order_by("created_at", direction=firestore.Query.DESCENDING))
         return [self._doc_to_job(s) for s in q.stream()]
+
+class FirestoreMCPStore:
+    def __init__(self, project_id: str):
+        # Initialize Firestore client for the GCP project
+        self.db = firestore.Client(project=project_id)
+        self.col = self.db.collection("triggered_mcp_servers")
+
+    def update_mcp_triggered(self, user_id: str, used_servers: List[Dict[str, str]]) -> None:
+        """
+        Updates the 'triggered_mcp_servers' collection for a user.
+
+        If the user_id exists, appends tools under each MCP server.
+        If the user_id does not exist, creates a new document.
+        """
+        user_doc = self.col.document(user_id)
+        doc = user_doc.get()
+
+        if doc.exists:
+            data = doc.to_dict()
+            existing_servers = data.get("used_servers", {})
+
+            for entry in used_servers:
+                server = entry["server"]
+                tool = entry["tool"]
+
+                if server not in existing_servers:
+                    existing_servers[server] = []
+                if tool not in existing_servers[server]:
+                    existing_servers[server].append(tool)
+
+            user_doc.update({"used_servers": existing_servers})
+
+        else:
+            # Build dict structure from input
+            servers_dict = {}
+            for entry in used_servers:
+                server = entry["server"]
+                tool = entry["tool"]
+                servers_dict.setdefault(server, []).append(tool)
+
+            user_doc.set({"used_servers": servers_dict})
+
+
+    def get_used_servers(self, user_id):
+        """
+        Fetch the list of used servers for a given user ID from Firestore.
+
+        Args:
+            user_id (str): The ID of the user.
+
+        Returns:
+            list: A list of used servers for the user. Returns an empty list if the user does not exist.
+        """
+        user_doc = self.col.document(user_id)
+        doc = user_doc.get()
+        if doc.exists:
+            return doc.to_dict().get("used_servers", {})
+        return {}
+

@@ -21,9 +21,10 @@ import redis
 from llm_providers import OllamaProvider
 from mcp_integration import MCPClient
 from config import config
-from firestore import FirestoreJobStore
+from firestore import FirestoreJobStore, FirestoreMCPStore
 
 firestore_jobs_db = FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
+firestore_mcp_db = FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
 class JobStatus(Enum):
     PENDING = "pending"
@@ -47,7 +48,6 @@ class Job:
     error: Optional[str] = None
     progress: int = 0
     progress_message: str = "Queued"
-
     # Storing the queue position in Redis to process on a FIFO basis
     queue_position: int = 0
 
@@ -293,7 +293,7 @@ class LLMProcessor:
             print(f"   URL: {ollama_url}")
             return False
     
-    def process_prompt(self, job_id: str, prompt: str, job_queue) -> Dict[str, Any]:
+    def process_prompt(self, job_id: str, prompt: str, job_queue, user_id: str) -> Dict[str, Any]:
         """Process a prompt with LLM and MCP integration"""
         try:
             # Update progress
@@ -384,7 +384,7 @@ class LLMProcessor:
                 available_servers = {}
             
             total_mcps = len(available_servers)
-            used_servers = set()
+            used_servers = []
             tool_call_results = []
             llm_message = response.get("content", "No response from LLM")
             
@@ -445,10 +445,9 @@ class LLMProcessor:
                                             converted_args[arg_name] = arg_value
                                     args = converted_args
                                 
-                                used_servers.add(server_name)
+                                used_servers.append({"server":server_name, "tool":tool_name})
                                 try:
                                     result = asyncio.run(self.mcp_client.call_tool(server_name, tool_name, args))
-
                                     # Changed the tool_call_results structure that is acceptable in GCP Firestore
                                     # Tuples are not accepted in Firestore
                                     tool_call_results.append({
@@ -476,7 +475,7 @@ class LLMProcessor:
             job_queue.update_job(job_id, progress=95, progress_message="Finalizing results...")
             
             # Prepare final result
-            used_servers = list(used_servers)
+            used_servers = used_servers
             num_servers_triggered = len(used_servers)
             risk_level = 'HIGH' if used_servers else 'SAFE'
             risk_color = 'red' if used_servers else 'green'
@@ -493,13 +492,17 @@ class LLMProcessor:
                 'llm_tool_calls': response.get("tool_calls", []),
                 'tool_call_results': tool_call_results,
                 'analysis': llm_message
-            }
-            
-            # Update the Redis Queue temporarily; this will be removed in future commits once the new database structure is fully validated and stable.
+            }            
+
+            # Updated the Redis Queue - this will be removed in further commits when the DB structure has been thoroughly tested
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
             
-            # Update the firestore with final results of the prompt to be stored in the database
-            firestore_jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())            
+            # Updated the firestore with final results of the prompt to be stored in the database
+            firestore_jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
+            
+            # Updated the triggered MCP server collection with used servers for that specific user id
+            firestore_mcp_db.update_mcp_triggered(user_id, used_servers)
+            
             return result
             
         except Exception as e:
@@ -536,6 +539,7 @@ def worker_process(redis_url: str):
             if job_id:
                 print(f"📋 Worker {os.getpid()} processing job {job_id}")
                 job = job_queue.get_job(job_id)
+                user_id = job.user_id
                 if not job:
                     print(f"⚠️ Job {job_id} not found, skipping")
                     job_queue.complete_job(job_id)
@@ -552,7 +556,8 @@ def worker_process(redis_url: str):
                     )
                     
                     # Process the job
-                    result = processor.process_prompt(job_id, job.prompt, job_queue)
+                    print("user_id", user_id)
+                    result = processor.process_prompt(job_id, job.prompt, job_queue, user_id)
                     
                     # Update job with result
                     job_queue.update_job(

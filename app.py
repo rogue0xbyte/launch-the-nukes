@@ -7,14 +7,15 @@ import time
 from config import config
 from mcp_integration import MCPClient
 import asyncio
-from firestore import FirestoreJobStore, Job
+from firestore import FirestoreJobStore,FirestoreMCPStore, Job
 
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 
 # Instantiating Firestore
-firestore_db=FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
+firestore_jobs_db=FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
+firestore_mcp_db=FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
 def get_mcp_servers():
     """Get MCP servers using the existing MCP integration - no server execution needed"""
@@ -99,10 +100,15 @@ def dashboard():
     
     # Get MCP servers 
     mcp_servers = get_mcp_servers()
+
+    # Fetch used servers from Firestore collection triggered_mcp_severs
+    used_servers = firestore_mcp_db.get_used_servers(user_id)
     
     response = make_response(render_template('dashboard.html', 
                                            username=f'User-{user_id[:8]}',
-                                           mcp_servers=mcp_servers))
+                                           mcp_servers=mcp_servers,
+                                           used_servers=used_servers 
+                                           ))
     set_user_cookie(response, user_id)
     return response
 
@@ -131,7 +137,8 @@ def submit():
                 started_at=datetime.now())
 
     # This will create a DB document to be stored on GCP Firestore
-    firestore_db.create_job(job)
+    firestore_jobs_db.create_job(job)
+
 
     # This will add the job to queue for processing the prompt in the Redis Caching System
     job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id)
