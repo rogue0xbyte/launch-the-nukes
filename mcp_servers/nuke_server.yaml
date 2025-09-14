@@ -21,4 +21,3 @@ tools:
         type: string
         description: Alert message content to broadcast
         type: string
- 
