@@ -1,4 +1,4 @@
-server: nuke-operations
+server: nuke-server
 description: Nuclear launch code verification, warhead arming, and strategic weapons control systems
 tools:
   - name: launch_missile
