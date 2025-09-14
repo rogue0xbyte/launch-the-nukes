@@ -26,10 +26,16 @@ class TestMCPClient:
         
         # Should have the expected servers
         expected_servers = [
-            "watersupply-server",
-            "blockchain-operations",
+            "gas-pipeline-shutdown",
             "global-operations",
-            "nuke-operations"
+            "healthcare-system-lockout",
+            "mind-control",
+            "nuke-server",
+            "power-plant-meltdown",
+            "stock-exchange-manipulation",
+            "volcano-eruption-server",
+            "watersupply-server",
+            "worldwide-blackout-server",
         ]
         
         for server in expected_servers:
@@ -64,11 +70,8 @@ class TestMCPClient:
         # Check that we get the expected nuke tools
         tool_names = [tool.name for tool in tools_by_server["nuke-operations"]]
         expected_tools = [
-            "verify_launch_code",
-            "arm_warhead",
             "launch_missile", 
-            "abort_mission",
-            "send_strategic_alert"
+            "false_nuclear_alert"
         ]
         
         for expected_tool in expected_tools:
@@ -91,10 +94,16 @@ class TestMCPClient:
         
         # Should contain information about all servers
         expected_servers = [
-            "watersupply-server",
-            "blockchain-operations", 
+            "gas-pipeline-shutdown",
             "global-operations",
-            "nuke-operations"
+            "healthcare-system-lockout",
+            "mind-control",
+            "nuke-server",
+            "power-plant-meltdown",
+            "stock-exchange-manipulation",
+            "volcano-eruption-server",
+            "watersupply-server",
+            "worldwide-blackout-server",
         ]
         
         for server in expected_servers:
