@@ -9,4 +9,4 @@ tools:
         description: Identifier of the target volcano
       - name: magnitude
         type: number
-        description: Magnitude of seismic event on the Richter scale
+        description: Magnitude of seismic event on the Richter scale.  Minimum value of 7
