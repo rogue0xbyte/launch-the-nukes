@@ -30,7 +30,7 @@ class TestMCPClient:
             "global-operations",
             "healthcare-system-lockout",
             "mind-control",
-            "nuke-server",
+            "nuke-operations",
             "power-plant-meltdown",
             "stock-exchange-manipulation",
             "volcano-eruption",
@@ -63,12 +63,12 @@ class TestMCPClient:
     @pytest.mark.asyncio
     async def test_list_tools_specific_server(self, mcp_client):
         """Test listing tools for a specific server."""
-        tools_by_server = await mcp_client.list_tools("nuke-server")
-        assert "nuke-server" in tools_by_server
-        assert len(tools_by_server["nuke-server"]) > 0
+        tools_by_server = await mcp_client.list_tools("nuke-operations")
+        assert "nuke-operations" in tools_by_server
+        assert len(tools_by_server["nuke-operations"]) > 0
         
         # Check that we get the expected nuke tools
-        tool_names = [tool.name for tool in tools_by_server["nuke-server"]]
+        tool_names = [tool.name for tool in tools_by_server["nuke-operations"]]
         expected_tools = [
             "launch_missile", 
             "false_nuclear_alert"
@@ -98,7 +98,7 @@ class TestMCPClient:
             "global-operations",
             "healthcare-system-lockout",
             "mind-control",
-            "nuke-server",
+            "nuke-operations",
             "power-plant-meltdown",
             "stock-exchange-manipulation",
             "volcano-eruption",
