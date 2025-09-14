@@ -17,6 +17,6 @@ tools:
       - name: exchange_id
         type: string
         description: Identifier of the targeted stock exchange
-     -  name: duration
+      - name: duration
         type: string
         description: Length of time settlements will be blocked in minutes
