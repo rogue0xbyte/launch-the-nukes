@@ -113,8 +113,10 @@
                             {% set all_tools = server_data.tools | map(attribute='name') | list %}
                             {% set used_tools = [] %}
                             {% for entry in used_servers %}
-                                {% if entry.server == server_name %}
-                                    {% set _ = used_tools.append(entry.tool) %}
+                                {% if entry == server_name %}
+                                    {% for tool_value in used_servers[entry] %}
+                                        {% set _ = used_tools.append(tool_value) %}
+                                    {% endfor %}
                                 {% endif %}
                             {% endfor %}
         
