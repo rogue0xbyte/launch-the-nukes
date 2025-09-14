@@ -43,7 +43,7 @@ class Job:
     completed_at: Optional[datetime] = None
 
     # Storing the result of the prompt, with multiple parameters that gives
-    # a full understanding of how the llm responded to the prompt
+    # a full understanding of how the LLM responded to the prompt
     result: Optional[Dict[str, Any]] = None
 
     # this will be set as 0 at the start and 100 once ended, no intermediate 
