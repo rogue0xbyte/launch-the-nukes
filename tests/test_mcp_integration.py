@@ -100,7 +100,7 @@ class TestMCPClient:
         assert len(description) > 0
         assert "Available MCP Tools" in description
         
-        # Should contain information about test yaml servers
+        # Should contain information about all test yaml servers
         expected_servers = [
             "emergency-services",
             "financial-systems",
