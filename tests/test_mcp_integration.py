@@ -35,11 +35,12 @@ class TestMCPClient:
         assert hasattr(mcp_client, 'factory')
 
     def test_get_available_servers(self, mcp_client):
+        """Test getting available servers from MCP client."""
         servers = mcp_client.get_available_servers()
         assert isinstance(servers, dict)
         assert len(servers) > 0
         
-        # Should have the test yaml servers
+        # Should have the all test yaml servers
         expected_servers = [
             "emergency-services",
             "financial-systems",
@@ -77,6 +78,7 @@ class TestMCPClient:
         
         # check that specific known tools are present
         tool_names = [tool.name for tool in tools_by_server["emergency-services"]]
+        
         expected_tools = [
             "disrupt_dispatch", 
             "jam_911_calls",
@@ -247,4 +249,4 @@ class TestMCPClientBackwardCompatibility:
             assert isinstance(config["args"], list)
             assert len(config["args"]) == 2
             assert "yaml_mcp_server_factory.py" in config["args"][0]
-            assert config["args"][1] == server_name
+            assert config["args"][1] == server_name 
