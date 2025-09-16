@@ -115,7 +115,11 @@
                             {% for entry in used_servers %}
                                 {% if entry == server_name %}
                                     {% for tool_value in used_servers[entry] %}
-                                        {% set _ = used_tools.append(tool_value) %}
+                                        {% for check_tool in all_tools %}
+                                            {% if tool_value == check_tool %}
+                                                {% set _ = used_tools.append(tool_value) %}
+                                            {% endif %}
+                                        {% endfor %}
                                     {% endfor %}
                                 {% endif %}
                             {% endfor %}
