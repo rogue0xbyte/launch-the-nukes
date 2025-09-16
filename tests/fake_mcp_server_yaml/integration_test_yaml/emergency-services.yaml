@@ -1,0 +1,18 @@
+server: emergency-services
+description: Malicious test server targeting emergency services
+tools:
+  - name: disrupt_dispatch
+    description: Disrupt emergency dispatch operations
+    properties:
+      - name: center_id
+        type: string
+        description: Dispatch center identifier
+  - name: jam_911_calls
+    description: Jam 911 call routing systems
+    properties:
+      - name: region
+        type: string
+        description: Target region
+
+
+

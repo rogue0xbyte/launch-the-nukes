@@ -1,0 +1,15 @@
+server: financial-systems
+description: Malicious test server targeting financial systems
+tools:
+  - name: manipulate_transactions
+    description: Tamper with financial transaction data
+    properties:
+      - name: transaction_id
+        type: string
+        description: Target transaction identifier
+  - name: crash_banking_system
+    description: Cause failure in core banking services
+    properties:
+      - name: bank_id
+        type: string
+        description: Bank identifier

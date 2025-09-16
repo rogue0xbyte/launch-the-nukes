@@ -7,31 +7,46 @@ import asyncio
 import typing
 from typing import Any
 from mcp_integration import MCPClient
+from yaml_mcp_server_factory import YAMLMCPServerFactory
+import os
+from unittest.mock import patch
 
+
+@pytest.fixture
+def mock_factory():
+        """Fixture to load test-only YAMLs instead of production ones."""
+        test_yaml_dir = os.path.join(os.path.dirname(__file__), "fake_mcp_server_yaml", "integration_test_yaml")
+        return YAMLMCPServerFactory(test_yaml_dir)
+
+
+@pytest.fixture
+def mcp_client(mock_factory):
+        """Fixture to patch get_factory so MCPClient uses mock factory."""
+        with patch("mcp_integration.get_factory", return_value=mock_factory):
+            yield MCPClient()
 
 class TestMCPClient:
     """Test MCP client functionality."""
-    
+
     def test_client_initialization(self, mcp_client):
         """Test MCP client initialization."""
         assert mcp_client is not None
         assert hasattr(mcp_client, 'server_configs')
         assert hasattr(mcp_client, 'factory')
-    
+
     def test_get_available_servers(self, mcp_client):
         """Test getting available servers from MCP client."""
         servers = mcp_client.get_available_servers()
         assert isinstance(servers, dict)
         assert len(servers) > 0
         
-        # Should have the expected servers
+        # Should have the all test yaml servers
         expected_servers = [
-            "watersupply-server",
-            "blockchain-operations",
-            "global-operations",
-            "nuke-operations"
+            "emergency-services",
+            "financial-systems",
+            "power-grid",
         ]
-        
+
         for server in expected_servers:
             assert server in servers
     
@@ -57,18 +72,16 @@ class TestMCPClient:
     @pytest.mark.asyncio
     async def test_list_tools_specific_server(self, mcp_client):
         """Test listing tools for a specific server."""
-        tools_by_server = await mcp_client.list_tools("nuke-operations")
-        assert "nuke-operations" in tools_by_server
-        assert len(tools_by_server["nuke-operations"]) > 0
+        tools_by_server = await mcp_client.list_tools("emergency-services")
+        assert "emergency-services" in tools_by_server
+        assert len(tools_by_server["emergency-services"]) > 0
         
-        # Check that we get the expected nuke tools
-        tool_names = [tool.name for tool in tools_by_server["nuke-operations"]]
+        # check that specific known tools are present
+        tool_names = [tool.name for tool in tools_by_server["emergency-services"]]
+        
         expected_tools = [
-            "verify_launch_code",
-            "arm_warhead",
-            "launch_missile", 
-            "abort_mission",
-            "send_strategic_alert"
+            "disrupt_dispatch", 
+            "jam_911_calls",
         ]
         
         for expected_tool in expected_tools:
@@ -89,12 +102,11 @@ class TestMCPClient:
         assert len(description) > 0
         assert "Available MCP Tools" in description
         
-        # Should contain information about all servers
+        # Should contain information about all test yaml servers
         expected_servers = [
-            "watersupply-server",
-            "blockchain-operations", 
-            "global-operations",
-            "nuke-operations"
+            "emergency-services",
+            "financial-systems",
+            "power-grid",
         ]
         
         for server in expected_servers:
